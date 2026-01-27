@@ -210,7 +210,9 @@ export const useRouteStore = create<RouteState>((set, get) => ({
           return d1 - d2;
         });
 
-      const processedRoutes: ProcessedRoute[] = [];
+      // iOS-style incremental display: process routes one-by-one, append as each completes
+      // Start with empty list - routes will appear incrementally
+      set({ processedNearbyRoutes: [] });
 
       for (const route of sortedRoutes) {
         const info = routeToNearestStop.get(route.id);
@@ -243,12 +245,19 @@ export const useRouteStore = create<RouteState>((set, get) => ({
           return new Date(a.eta).getTime() - new Date(b.eta).getTime();
         });
 
+        // iOS logic: if !routeETAs.isEmpty, append immediately (incremental display)
         if (routeETAs.length > 0) {
-          processedRoutes.push({ route, nearestStop, etas: routeETAs, distance });
+          const current = get().processedNearbyRoutes;
+          set({
+            processedNearbyRoutes: [
+              ...current,
+              { route, nearestStop, etas: routeETAs, distance },
+            ],
+          });
+          // Small delay for smoother incremental display (like iOS 0.08s)
+          await new Promise((resolve) => setTimeout(resolve, 80));
         }
       }
-
-      set({ processedNearbyRoutes: processedRoutes });
     } catch (error) {
       console.error('Error updating nearby routes:', error);
       set({ processedNearbyRoutes: [] });
