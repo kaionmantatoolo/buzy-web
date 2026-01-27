@@ -120,15 +120,16 @@ export default function SearchPage() {
     >
       <PageHeader title={t('search')} />
 
-      {/* Results area - takes available space above keypad, scrollable */}
+      {/* Results ScrollView - matches iOS ScrollView */}
       <Box
         sx={{
-          flex: '1 1 auto',
+          flex: 1,
           minHeight: 0,
           overflowY: 'auto',
           overflowX: 'hidden',
           WebkitOverflowScrolling: 'touch',
           bgcolor: 'background.default',
+          pb: 2.5, // iOS: .padding(.bottom, 20)
         }}
       >
         {searchText ? (
@@ -160,28 +161,28 @@ export default function SearchPage() {
         )}
       </Box>
 
-      {/* Fixed bottom section - Search bar and keypad (never scrolls) */}
+      {/* Search bar + Keypad VStack - matches iOS VStack below ScrollView */}
       <Box
         sx={{
           flexShrink: 0,
           bgcolor: 'background.paper',
-          borderTop: 1,
-          borderColor: 'divider',
-          pb: 'env(safe-area-inset-bottom)',
+          px: 2, // iOS: .padding(.horizontal)
+          pb: 1.25, // iOS: .padding(.bottom, 10)
+          pt: 1.25,
         }}
       >
-        {/* Search bar */}
-        <Box sx={{ px: 2, pt: 2, pb: 1.5 }}>
+        <Stack spacing={1.25}>
+          {/* Search bar */}
           <Paper
             elevation={0}
             sx={{
-              px: 2,
-              py: 1.5,
+              px: 1.25,
+              py: 1.25,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
               bgcolor: (theme) => alpha(theme.palette.primary.main, 0.08),
-              borderRadius: 3,
+              borderRadius: 2.5,
             }}
           >
             <Typography
@@ -206,143 +207,143 @@ export default function SearchPage() {
               </IconButton>
             )}
           </Paper>
-        </Box>
 
-        {/* Keypad section - M3 expressive design */}
-        <Box sx={{ px: 2, pb: 2, display: 'flex', gap: 1.5 }}>
-          {/* Number pad */}
-          <Paper 
-            elevation={1}
-            sx={{ 
-              flex: 1, 
-              p: 1.5, 
-              bgcolor: 'surfaceVariant.main',
-              borderRadius: 4,
-            }}
-          >
-            <Stack spacing={1.5}>
-              {numberRows.map((row, rowIndex) => (
-                <Stack key={rowIndex} direction="row" spacing={1.5}>
-                  {row.map(char => {
-                    const isDisabled = 
-                      (char === '⌫' && searchText === '') ||
-                      (char === 'C' && searchText === '') ||
-                      (/[0-9]/.test(char) && !isNumberEnabled(char));
-                    
-                    const isSpecial = char === 'C' || char === '⌫';
-                    
-                    return (
-                      <ButtonBase
-                        key={char}
-                        onClick={() => handleInput(char)}
-                        disabled={isDisabled}
-                        sx={{
-                          flex: 1,
-                          height: 56,
-                          borderRadius: 3,
-                          bgcolor: isSpecial 
-                            ? alpha(theme.palette.error.main, 0.12)
-                            : 'background.paper',
-                          color: isDisabled 
-                            ? 'text.disabled' 
-                            : isSpecial 
-                              ? 'error.main'
-                              : 'text.primary',
-                          fontSize: char === '⌫' ? '1.25rem' : '1.5rem',
-                          fontWeight: 600,
-                          transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-                          boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
-                          '&:hover:not(:disabled)': {
-                            bgcolor: isSpecial
-                              ? alpha(theme.palette.error.main, 0.16)
-                              : alpha(theme.palette.primary.main, 0.08),
-                            transform: 'translateY(-1px)',
-                            boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                          },
-                          '&:active:not(:disabled)': {
-                            transform: 'scale(0.96)',
-                          },
-                        }}
-                      >
-                        {char === '⌫' ? <BackspaceIcon /> : char}
-                      </ButtonBase>
-                    );
-                  })}
-                </Stack>
-              ))}
-            </Stack>
-          </Paper>
-
-          {/* Alphabet column */}
-          <Paper 
-            elevation={1}
-            sx={{ 
-              width: 60, 
-              p: 1.5, 
-              bgcolor: 'surfaceVariant.main',
-              borderRadius: 4,
-              display: 'flex',
-              flexDirection: 'column',
-            }}
-          >
-            <Box 
+          {/* Keypad HStack - matches iOS HStack */}
+          <Stack direction="row" spacing={1.25} alignItems="flex-start">
+            {/* Number pad */}
+            <Paper 
+              elevation={1}
               sx={{ 
                 flex: 1, 
-                overflow: 'auto',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 1,
-                maxHeight: 4 * 56 + 3 * 6, // Match number pad height
+                p: 1.25, 
+                bgcolor: 'surfaceVariant.main',
+                borderRadius: 4,
               }}
             >
-              {availableAlphabets.length > 0 ? (
-                availableAlphabets.map(letter => (
-                  <ButtonBase
-                    key={letter}
-                    onClick={() => handleInput(letter)}
-                    sx={{
-                      height: 44,
-                      minHeight: 44,
-                      borderRadius: 2.5,
-                      bgcolor: 'background.paper',
-                      color: 'primary.main',
-                      fontSize: '1.125rem',
-                      fontWeight: 700,
-                      transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-                      boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
-                      '&:hover': {
-                        bgcolor: alpha(theme.palette.primary.main, 0.12),
-                        transform: 'translateY(-1px)',
-                        boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                      },
-                      '&:active': {
-                        transform: 'scale(0.96)',
-                      },
-                    }}
-                  >
-                    {letter}
-                  </ButtonBase>
-                ))
-              ) : (
-                <Box sx={{ 
-                  flex: 1, 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  justifyContent: 'center',
-                  color: 'text.disabled',
-                }}>
-                  -
-                </Box>
-              )}
-            </Box>
-          </Paper>
-        </Box>
+              <Stack spacing={1.25}>
+                {numberRows.map((row, rowIndex) => (
+                  <Stack key={rowIndex} direction="row" spacing={1.25}>
+                    {row.map(char => {
+                      const isDisabled = 
+                        (char === '⌫' && searchText === '') ||
+                        (char === 'C' && searchText === '') ||
+                        (/[0-9]/.test(char) && !isNumberEnabled(char));
+                      
+                      const isSpecial = char === 'C' || char === '⌫';
+                      
+                      return (
+                        <ButtonBase
+                          key={char}
+                          onClick={() => handleInput(char)}
+                          disabled={isDisabled}
+                          sx={{
+                            flex: 1,
+                            height: 60, // iOS: minHeight: 60
+                            borderRadius: 2,
+                            bgcolor: isSpecial 
+                              ? alpha(theme.palette.error.main, 0.12)
+                              : 'background.paper',
+                            color: isDisabled 
+                              ? 'text.disabled' 
+                              : isSpecial 
+                                ? 'error.main'
+                                : 'text.primary',
+                            fontSize: char === '⌫' ? '1.25rem' : '1.5rem',
+                            fontWeight: 600,
+                            transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                            boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+                            '&:hover:not(:disabled)': {
+                              bgcolor: isSpecial
+                                ? alpha(theme.palette.error.main, 0.16)
+                                : alpha(theme.palette.primary.main, 0.08),
+                              transform: 'translateY(-1px)',
+                              boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                            },
+                            '&:active:not(:disabled)': {
+                              transform: 'scale(0.96)',
+                            },
+                          }}
+                        >
+                          {char === '⌫' ? <BackspaceIcon /> : char}
+                        </ButtonBase>
+                      );
+                    })}
+                  </Stack>
+                ))}
+              </Stack>
+            </Paper>
+
+            {/* Alphabet column - matches iOS VStack with ScrollView */}
+            <Paper 
+              elevation={1}
+              sx={{ 
+                width: 60, 
+                p: 1.25, 
+                bgcolor: 'surfaceVariant.main',
+                borderRadius: 4,
+                display: 'flex',
+                flexDirection: 'column',
+                height: 4 * 60 + 3 * 5, // Match number pad height (4 rows * 60px + 3 gaps * 5px)
+              }}
+            >
+              <Box 
+                sx={{ 
+                  flex: 1,
+                  overflow: 'auto',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 1.25,
+                }}
+              >
+                {availableAlphabets.length > 0 ? (
+                  availableAlphabets.map(letter => (
+                    <ButtonBase
+                      key={letter}
+                      onClick={() => handleInput(letter)}
+                      sx={{
+                        height: 40,
+                        minHeight: 40,
+                        borderRadius: 2,
+                        bgcolor: 'background.paper',
+                        color: 'primary.main',
+                        fontSize: '1.125rem',
+                        fontWeight: 700,
+                        transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                        boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+                        '&:hover': {
+                          bgcolor: alpha(theme.palette.primary.main, 0.12),
+                          transform: 'translateY(-1px)',
+                          boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                        },
+                        '&:active': {
+                          transform: 'scale(0.96)',
+                        },
+                      }}
+                    >
+                      {letter}
+                    </ButtonBase>
+                  ))
+                ) : (
+                  <Box sx={{ 
+                    flex: 1, 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'center',
+                    color: 'text.disabled',
+                  }}>
+                    -
+                  </Box>
+                )}
+              </Box>
+            </Paper>
+          </Stack>
+        </Stack>
       </Box>
     </Box>
   );
 }
 
-// Route list item component
+// Route list item component - matches iOS HStack layout
 interface RouteListItemProps {
   route: Route;
   isFavorite: boolean;
@@ -354,51 +355,54 @@ function RouteListItem({ route, isFavorite: isFav, locale, useCTBInfo }: RouteLi
   const destination = getRouteDestination(route, locale, useCTBInfo);
 
   return (
-    <ListItem disablePadding divider>
+    <ListItem disablePadding>
       <ListItemButton
         component={Link}
         href={`/route/${route.routeNumber}/${route.bound}/${route.serviceType}/${route.company}`}
-        sx={{ py: 1.5, px: 2 }}
+        sx={{ 
+          py: 1.5, // iOS: .padding(.vertical, 12)
+          px: 2, // iOS: .padding(.leading/trailing, 16)
+          bgcolor: 'background.paper',
+        }}
       >
-        <Box sx={{ display: 'flex', alignItems: 'center', width: '100%', gap: 2 }}>
-          {/* Route number */}
+        <Box sx={{ display: 'flex', alignItems: 'center', width: '100%' }}>
+          {/* Route number - left side */}
           <Typography
             variant="titleLarge"
             sx={{ 
               fontWeight: 700, 
-              minWidth: 70,
-              color: 'primary.main',
+              minWidth: 80,
+              color: 'text.primary', // iOS: .foregroundColor(.primary)
             }}
           >
             {route.routeNumber}
           </Typography>
 
-          {/* Route info */}
-          <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
-              <Typography
-                variant="bodyMedium"
-                color="text.secondary"
-                sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
-              >
-                → {destination}
-              </Typography>
-              <CompanyBadge company={route.company} size="small" />
-              {route.serviceType !== '1' && (
-                <Chip
-                  label="Special"
-                  size="small"
-                  color="warning"
-                  sx={{ height: 20, fontSize: '0.625rem' }}
-                />
-              )}
-            </Stack>
-          </Box>
+          {/* Spacer */}
+          <Box sx={{ flex: 1 }} />
 
-          {/* Favorite star */}
-          {isFav && (
-            <StarIcon sx={{ color: 'warning.main', fontSize: 20 }} />
-          )}
+          {/* Route info - right side */}
+          <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
+            <Typography
+              variant="bodyMedium"
+              color="text.secondary" // iOS: .foregroundColor(.secondary)
+              sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+            >
+              {destination}
+            </Typography>
+            <CompanyBadge company={route.company} size="small" />
+            {route.serviceType !== '1' && (
+              <Chip
+                label="Special"
+                size="small"
+                color="warning"
+                sx={{ height: 20, fontSize: '0.625rem' }}
+              />
+            )}
+            {isFav && (
+              <StarIcon sx={{ color: 'warning.main', fontSize: 20 }} />
+            )}
+          </Stack>
         </Box>
       </ListItemButton>
     </ListItem>
