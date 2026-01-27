@@ -209,9 +209,9 @@ export default function RouteDetailPage() {
         rightContent={<FavoriteButton route={currentRoute} size="small" />}
       />
 
-      {/* Map section - takes upper half when visible */}
+      {/* Map section - takes 35% of screen when visible */}
       <Collapse in={showMap}>
-        <Box sx={{ height: '50vh', position: 'relative' }}>
+        <Box sx={{ height: '35vh', position: 'relative' }}>
           <RouteMap
             stops={currentRoute.stops}
             selectedStopId={expandedStopId}
@@ -280,7 +280,7 @@ export default function RouteDetailPage() {
       />
 
       {/* Stop list - takes remaining space and is scrollable */}
-      <Box sx={{ flex: showMap ? 1 : 'none', height: showMap ? '50vh' : 'auto', overflow: 'auto' }}>
+      <Box sx={{ flex: 1, overflow: 'auto', height: showMap ? '65vh' : 'auto' }}>
         <Box sx={{ px: 2, py: 1 }}>
           {currentRoute.stops.map((stop, index) => {
             const uniqueId = getStopUniqueId(stop);
