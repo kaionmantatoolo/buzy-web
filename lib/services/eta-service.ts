@@ -50,6 +50,41 @@ async function fetchKMBETAForStopAndRoute(
 }
 
 /**
+ * Fetch KMB ETAs for a stop (all routes) - efficient endpoint
+ */
+async function fetchKMBETAForStop(stopId: string): Promise<StopETA[]> {
+  // Check cache
+  const cacheKey = `kmb-stop-${stopId}`;
+  const cached = etaCache.get(cacheKey);
+  if (cached && Date.now() - cached.timestamp < CACHE_LIFETIME_MS) {
+    return cached.etas;
+  }
+  
+  try {
+    const url = `${KMB_API_BASE}/stop-eta/${stopId}`;
+    const response = await fetch(url);
+    if (!response.ok) {
+      console.error(`KMB stop API error: ${response.status}`);
+      return [];
+    }
+    
+    const data = await response.json();
+    const etas = data.data || [];
+    
+    // Cache the results
+    etaCache.set(cacheKey, {
+      timestamp: Date.now(),
+      etas,
+    });
+    
+    return etas;
+  } catch (error) {
+    console.error('Error fetching KMB stop ETAs:', error);
+    return [];
+  }
+}
+
+/**
  * Fetch CTB ETAs for a specific stop and route
  */
 async function fetchCTBETAForStopAndRoute(
@@ -92,6 +127,46 @@ async function fetchCTBETAForStopAndRoute(
     console.error('Error fetching CTB ETAs:', error);
     return [];
   }
+}
+
+/**
+ * Filter ETAs to match a specific route (like iOS filterETAsForRoute)
+ */
+function filterETAsForRoute(route: Route, allETAs: StopETA[]): StopETA[] {
+  return allETAs.filter(eta => {
+    // Normalize route numbers for CTB/Joint routes
+    const etaCo = eta.co.trim().toUpperCase();
+    const shouldNormalize = etaCo === 'CTB' || route.company === 'Both';
+    
+    let normalizedETARoute = eta.route;
+    let normalizedRouteNumber = route.routeNumber;
+    
+    if (shouldNormalize) {
+      // Remove leading zeros and spaces
+      normalizedETARoute = eta.route.trim().replace(/^0+/, '');
+      normalizedRouteNumber = route.routeNumber.trim().replace(/^0+/, '');
+    } else {
+      normalizedETARoute = eta.route.trim();
+      normalizedRouteNumber = route.routeNumber.trim();
+    }
+    
+    // Route number must match
+    const routeMatches = normalizedETARoute === normalizedRouteNumber;
+    
+    // Direction must match
+    const directionMatches = eta.dir === route.bound;
+    
+    // Service type matching (lenient for CTB/Joint)
+    let serviceTypeMatches = true;
+    if (etaCo !== 'CTB' && route.company !== 'Both') {
+      serviceTypeMatches = eta.service_type === route.serviceType;
+    }
+    
+    return routeMatches && directionMatches && serviceTypeMatches;
+  }).filter((eta): eta is StopETA & { eta: string } => {
+    // Only keep ETAs with valid eta time
+    return eta.eta != null && eta.eta !== '';
+  });
 }
 
 /**
@@ -221,7 +296,7 @@ export async function fetchETAsForRoute(route: Route): Promise<RouteETA[]> {
 }
 
 /**
- * Fetch ETAs for a single stop (all routes)
+ * Fetch ETAs for a single stop (all routes) - for nearby routes processing
  */
 export async function fetchETAsForStop(
   stopId: string,
@@ -239,12 +314,8 @@ export async function fetchETAsForStop(
   // Fetch KMB if applicable
   if (!company || company === 'KMB' || company === 'Both') {
     try {
-      const url = `${KMB_API_BASE}/stop-eta/${stopId}`;
-      const response = await fetch(url);
-      if (response.ok) {
-        const data = await response.json();
-        allETAs.push(...(data.data || []));
-      }
+      const kmbETAs = await fetchKMBETAForStop(stopId);
+      allETAs.push(...kmbETAs);
     } catch (error) {
       console.error('Error fetching KMB stop ETAs:', error);
     }
@@ -274,3 +345,6 @@ export function getETAsForStopSequence(
       return new Date(a.eta).getTime() - new Date(b.eta).getTime();
     });
 }
+
+// Export the filter function for use in route store
+export { filterETAsForRoute, fetchKMBETAForStop };

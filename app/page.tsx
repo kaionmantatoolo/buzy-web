@@ -22,7 +22,8 @@ import { useTranslation } from '@/lib/i18n';
 export default function NearbyPage() {
   const { t } = useTranslation();
   const {
-    nearbyRoutes,
+    processedNearbyRoutes,
+    isLoadingNearbyRoutes,
     loadingState,
     userLocation,
     setUserLocation,
@@ -168,7 +169,7 @@ export default function NearbyPage() {
           </Box>
         )}
 
-        {/* Discovery range banner - M3 expressive tonal bar */}
+        {/* Discovery range banner */}
         {userLocation && !isRequestingLocation && (
           <Box
             sx={{
@@ -191,7 +192,7 @@ export default function NearbyPage() {
           </Box>
         )}
 
-        {/* Route list - iOS-style */}
+        {/* Route list - only routes with valid ETAs */}
         {userLocation && !isRequestingLocation && (
           <Box
             sx={{
@@ -206,21 +207,7 @@ export default function NearbyPage() {
                   : '0 1px 3px rgba(0,0,0,0.2)',
             }}
           >
-            {nearbyRoutes.length > 0 ? (
-              <>
-                {nearbyRoutes.map((route, index) => (
-                  <Box key={route.id}>
-                    {index > 0 && <Divider sx={{ mx: 2 }} />}
-                    <NearbyRouteRow route={route} />
-                  </Box>
-                ))}
-              </>
-            ) : loadingState === 'success' ? (
-              <Box sx={{ textAlign: 'center', py: 10, px: 2 }}>
-                <MapIcon sx={{ fontSize: 56, color: 'text.disabled', mb: 2 }} />
-                <Typography color="text.secondary">{t('noNearbyRoutes')}</Typography>
-              </Box>
-            ) : (
+            {isLoadingNearbyRoutes ? (
               <>
                 {[...Array(5)].map((_, i) => (
                   <Box key={i}>
@@ -229,7 +216,26 @@ export default function NearbyPage() {
                   </Box>
                 ))}
               </>
-            )}
+            ) : processedNearbyRoutes.length > 0 ? (
+              <>
+                {processedNearbyRoutes.map((processedRoute, index) => (
+                  <Box key={processedRoute.route.id}>
+                    {index > 0 && <Divider sx={{ mx: 2 }} />}
+                    <NearbyRouteRow
+                      route={processedRoute.route}
+                      nearestStop={processedRoute.nearestStop}
+                      etas={processedRoute.etas}
+                      distance={processedRoute.distance}
+                    />
+                  </Box>
+                ))}
+              </>
+            ) : loadingState === 'success' ? (
+              <Box sx={{ textAlign: 'center', py: 10, px: 2 }}>
+                <MapIcon sx={{ fontSize: 56, color: 'text.disabled', mb: 2 }} />
+                <Typography color="text.secondary">{t('noNearbyRoutes')}</Typography>
+              </Box>
+            ) : null}
           </Box>
         )}
       </Box>

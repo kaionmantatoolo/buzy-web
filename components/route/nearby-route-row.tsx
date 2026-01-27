@@ -2,8 +2,7 @@
 
 import Link from 'next/link';
 import { Box, Typography, Stack, Skeleton } from '@mui/material';
-import StarIcon from '@mui/icons-material/Star';
-import { Route, getRouteDestination } from '@/lib/types';
+import { Route, StopDetail, RouteETA, getRouteDestination, getStopName, formatETA } from '@/lib/types';
 import { CompanyBadge } from '@/components/ui';
 import { FavoriteButton } from '@/components/ui/favorite-button';
 import { useTranslation } from '@/lib/i18n';
@@ -11,18 +10,26 @@ import { useSettingsStore } from '@/lib/stores';
 
 interface NearbyRouteRowProps {
   route: Route;
+  nearestStop: StopDetail;
+  etas: RouteETA[];
+  distance: number;
 }
 
-export function NearbyRouteRow({ route }: NearbyRouteRowProps) {
+export function NearbyRouteRow({ route, nearestStop, etas, distance }: NearbyRouteRowProps) {
   const { t, locale } = useTranslation();
   const useCTBInfo = useSettingsStore(state => state.useCTBInfoForJointRoutes);
   const destination = getRouteDestination(route, locale, useCTBInfo);
+  const stopName = getStopName(nearestStop, locale, useCTBInfo);
 
-  const distanceText = route.distance
-    ? route.distance < 1000
-      ? `${Math.round(route.distance)}m`
-      : `${(route.distance / 1000).toFixed(1)}km`
+  // Get the first valid ETA
+  const firstETA = etas.length > 0 ? etas[0] : null;
+  const etaText = firstETA?.eta 
+    ? formatETA(firstETA.eta, locale)
     : null;
+
+  const distanceText = distance < 1000
+    ? `${Math.round(distance)}m`
+    : `${(distance / 1000).toFixed(1)}km`;
 
   return (
     <Box
@@ -42,7 +49,7 @@ export function NearbyRouteRow({ route }: NearbyRouteRowProps) {
         '&:active': { bgcolor: 'action.selected' },
       }}
     >
-      {/* Route number - iOS blue */}
+      {/* Route number */}
       <Typography
         variant="titleLarge"
         sx={{
@@ -57,7 +64,7 @@ export function NearbyRouteRow({ route }: NearbyRouteRowProps) {
         {route.routeNumber}
       </Typography>
 
-      {/* Destination + distance + badges */}
+      {/* Destination + stop name + badges */}
       <Box sx={{ flex: 1, minWidth: 0 }}>
         <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" sx={{ mb: 0.25 }}>
           <Typography
@@ -90,9 +97,42 @@ export function NearbyRouteRow({ route }: NearbyRouteRowProps) {
             </Typography>
           )}
         </Stack>
-        {distanceText && (
-          <Typography variant="bodySmall" color="text.secondary">
-            {distanceText}
+        <Typography variant="bodySmall" color="text.secondary" sx={{ mb: 0.25 }}>
+          {stopName}
+        </Typography>
+        <Typography variant="bodySmall" color="text.secondary">
+          {distanceText}
+        </Typography>
+      </Box>
+
+      {/* ETA display - matches iOS */}
+      <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 70, flexShrink: 0 }}>
+        {etaText ? (
+          <>
+            <Typography
+              variant="titleLarge"
+              sx={{
+                fontWeight: 700,
+                fontSize: '1.25rem',
+                color: 'text.primary',
+              }}
+            >
+              {etaText}
+            </Typography>
+            <Typography variant="bodySmall" color="text.secondary">
+              {t('min')}
+            </Typography>
+          </>
+        ) : (
+          <Typography
+            variant="titleLarge"
+            sx={{
+              fontWeight: 700,
+              fontSize: '1.25rem',
+              color: 'text.secondary',
+            }}
+          >
+            {t('na')}
           </Typography>
         )}
       </Box>
@@ -110,6 +150,7 @@ export function NearbyRouteRowSkeleton() {
         <Skeleton variant="text" width="60%" height={20} sx={{ mb: 0.5 }} />
         <Skeleton variant="text" width={48} height={16} />
       </Box>
+      <Skeleton variant="rounded" width={50} height={40} />
     </Box>
   );
 }
