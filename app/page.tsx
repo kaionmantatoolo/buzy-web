@@ -46,33 +46,35 @@ export default function NearbyPage() {
   const CACHE_KEY = 'nearby_routes_cache';
   const CACHE_TIMESTAMP_KEY = 'nearby_routes_cache_timestamp';
   const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+  const LOCATION_CACHE_KEY = 'user_location_cache';
+  const LOCATION_CACHE_DURATION = 30 * 60 * 1000; // 30 minutes
 
-  // Check permission status without requesting (Safari-safe) and load cached data
+  // Check permission status and load cached data, then auto-request location if permission already granted
   useEffect(() => {
+    if (!isBrowser) return;
+
     // Load cached data on mount
-    if (isBrowser) {
-      try {
-        const cachedData = sessionStorage.getItem(CACHE_KEY);
-        const cachedTimestamp = sessionStorage.getItem(CACHE_TIMESTAMP_KEY);
+    try {
+      const cachedData = sessionStorage.getItem(CACHE_KEY);
+      const cachedTimestamp = sessionStorage.getItem(CACHE_TIMESTAMP_KEY);
 
-        if (cachedData && cachedTimestamp) {
-          const timestamp = parseInt(cachedTimestamp, 10);
-          const now = Date.now();
+      if (cachedData && cachedTimestamp) {
+        const timestamp = parseInt(cachedTimestamp, 10);
+        const now = Date.now();
 
-          // Check if cache is still valid (within 5 minutes)
-          if (now - timestamp < CACHE_DURATION) {
-            const routes = JSON.parse(cachedData);
-            setCachedRoutes(routes);
-            setLastRefreshTime(new Date(timestamp).toLocaleTimeString());
-          } else {
-            // Clear expired cache
-            sessionStorage.removeItem(CACHE_KEY);
-            sessionStorage.removeItem(CACHE_TIMESTAMP_KEY);
-          }
+        // Check if cache is still valid (within 5 minutes)
+        if (now - timestamp < CACHE_DURATION) {
+          const routes = JSON.parse(cachedData);
+          setCachedRoutes(routes);
+          setLastRefreshTime(new Date(timestamp).toLocaleTimeString());
+        } else {
+          // Clear expired cache
+          sessionStorage.removeItem(CACHE_KEY);
+          sessionStorage.removeItem(CACHE_TIMESTAMP_KEY);
         }
-      } catch (error) {
-        console.error('Error loading cached data:', error);
       }
+    } catch (error) {
+      console.error('Error loading cached data:', error);
     }
 
     const hasGeolocation = 'geolocation' in navigator;
@@ -82,6 +84,27 @@ export default function NearbyPage() {
       return;
     }
 
+    // Check for cached location
+    try {
+      const cachedLocation = localStorage.getItem(LOCATION_CACHE_KEY);
+      const cachedLocationTimestamp = localStorage.getItem(`${LOCATION_CACHE_KEY}_timestamp`);
+
+      if (cachedLocation && cachedLocationTimestamp) {
+        const timestamp = parseInt(cachedLocationTimestamp, 10);
+        const now = Date.now();
+
+        // Check if location cache is still valid (within 30 minutes)
+        if (now - timestamp < LOCATION_CACHE_DURATION) {
+          const location = JSON.parse(cachedLocation);
+          // Set location without requesting permission if we have recent cached location
+          setUserLocation(location);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading cached location:', error);
+    }
+
+    // Check permission status
     const geo = navigator.geolocation;
 
     // Use Permissions API if available (Chrome, Firefox, but not Safari)
@@ -89,23 +112,101 @@ export default function NearbyPage() {
       navigator.permissions.query({ name: 'geolocation' as PermissionName }).then((result) => {
         setPermissionStatus(result.state as 'granted' | 'denied' | 'prompt');
 
+        // If permission is already granted, try to get location automatically
+        if (result.state === 'granted' && !userLocation) {
+          // Try to get location silently first
+          geo.getCurrentPosition(
+            (position) => {
+              const location = {
+                lat: position.coords.latitude,
+                lng: position.coords.longitude,
+              };
+              setUserLocation(location);
+
+              // Cache the location
+              try {
+                localStorage.setItem(LOCATION_CACHE_KEY, JSON.stringify(location));
+                localStorage.setItem(`${LOCATION_CACHE_KEY}_timestamp`, Date.now().toString());
+              } catch (error) {
+                console.error('Error caching location:', error);
+              }
+            },
+            (error) => {
+              console.log('Silent location fetch failed:', error);
+            },
+            { enableHighAccuracy: true, timeout: 5000, maximumAge: 300000 } // 5 minute maximum age
+          );
+        }
+
         // Listen for permission changes
         result.onchange = () => {
           setPermissionStatus(result.state as 'granted' | 'denied' | 'prompt');
+
+          // If permission becomes granted, get location
+          if (result.state === 'granted' && !userLocation) {
+            geo.getCurrentPosition(
+              (position) => {
+                const location = {
+                  lat: position.coords.latitude,
+                  lng: position.coords.longitude,
+                };
+                setUserLocation(location);
+
+                // Cache the location
+                try {
+                  localStorage.setItem(LOCATION_CACHE_KEY, JSON.stringify(location));
+                  localStorage.setItem(`${LOCATION_CACHE_KEY}_timestamp`, Date.now().toString());
+                } catch (error) {
+                  console.error('Error caching location:', error);
+                }
+              },
+              (error) => {
+                console.error('Location fetch failed:', error);
+              },
+              { enableHighAccuracy: true, timeout: 10000, maximumAge: 300000 }
+            );
+          }
         };
       }).catch(() => {
         // Permissions API not supported, default to prompt
         setPermissionStatus('prompt');
+
+        // For browsers without Permissions API, if we have cached location, use it
+        if (!userLocation) {
+          try {
+            const cachedLocation = localStorage.getItem(LOCATION_CACHE_KEY);
+            if (cachedLocation) {
+              const location = JSON.parse(cachedLocation);
+              setUserLocation(location);
+              setPermissionStatus('granted');
+            }
+          } catch (error) {
+            console.error('Error loading cached location:', error);
+          }
+        }
       });
     } else {
       // Permissions API not available (Safari)
       if (userLocation) {
         setPermissionStatus('granted');
       } else {
-        setPermissionStatus('prompt');
+        // For Safari, check if we have cached location
+        try {
+          const cachedLocation = localStorage.getItem(LOCATION_CACHE_KEY);
+          if (cachedLocation) {
+            const location = JSON.parse(cachedLocation);
+            setUserLocation(location);
+            setPermissionStatus('granted');
+          } else {
+            setPermissionStatus('prompt');
+          }
+        } catch (error) {
+          console.error('Error loading cached location:', error);
+          setPermissionStatus('prompt');
+        }
       }
     }
-  }, [userLocation]);
+  }, [userLocation, setUserLocation]);
 
 
   const requestLocation = useCallback(() => {
@@ -126,13 +227,25 @@ export default function NearbyPage() {
 
     navigator.geolocation.getCurrentPosition(
       (position) => {
-        setUserLocation({
+        const location = {
           lat: position.coords.latitude,
           lng: position.coords.longitude,
-        });
+        };
+
+        setUserLocation(location);
         setIsRequestingLocation(false);
         setPermissionDenied(false);
         setPermissionStatus('granted');
+
+        // Cache the location
+        if (isBrowser) {
+          try {
+            localStorage.setItem(LOCATION_CACHE_KEY, JSON.stringify(location));
+            localStorage.setItem(`${LOCATION_CACHE_KEY}_timestamp`, Date.now().toString());
+          } catch (error) {
+            console.error('Error caching location:', error);
+          }
+        }
       },
       (error) => {
         console.error('[Location] Geolocation error:', error);
@@ -162,7 +275,7 @@ export default function NearbyPage() {
         maximumAge: 60000,
       }
     );
-  }, [setUserLocation]);
+  }, [setUserLocation, isBrowser]);
 
   const handleRefresh = useCallback(() => {
     if (userLocation) {
