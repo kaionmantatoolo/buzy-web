@@ -83,9 +83,11 @@ export default function NearbyPage() {
   }, [requestLocation]);
 
   useEffect(() => {
-    if (!userLocation) return;
+    // Only run when we have location AND routes are loaded
+    if (!userLocation || loadingState !== 'success' || routes.length === 0) return;
+    console.log('[NearbyPage] Effect triggered: updating nearby routes');
     updateNearbyRoutes();
-  }, [userLocation, discoveryRange, updateNearbyRoutes, loadingState, routes.length]);
+  }, [userLocation, discoveryRange, loadingState, routes.length]); // Removed updateNearbyRoutes from deps - Zustand function is stable
 
   if (loadingState === 'loading') {
     return <FullPageLoader message={t('fetchingRouteData')} />;
