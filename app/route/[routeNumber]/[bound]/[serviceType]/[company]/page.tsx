@@ -93,7 +93,7 @@ export default function RouteDetailPage() {
   }, [currentRoute, expandedStopId, fetchStopETAs]);
 
 
-  // Auto-scroll to nearest stop without expanding it
+  // Auto-scroll to nearest stop and expand it with ETA fetch
   useEffect(() => {
     if (currentRoute && userLocation && currentRoute.stops.length > 0 && !expandedStopId) {
       let nearestStop = currentRoute.stops[0];
@@ -112,6 +112,10 @@ export default function RouteDetailPage() {
 
       const nearestStopId = getStopUniqueId(nearestStop);
 
+      // Auto-expand the nearest stop and fetch its ETAs
+      setExpandedStopId(nearestStopId);
+      fetchStopETAs(nearestStopId);
+
       // Auto-scroll to the nearest stop after a short delay to ensure DOM is updated
       setTimeout(() => {
         const element = document.getElementById(`stop-${nearestStopId}`);
@@ -120,7 +124,7 @@ export default function RouteDetailPage() {
         }
       }, 100);
     }
-  }, [currentRoute, userLocation, expandedStopId]);
+  }, [currentRoute, userLocation, expandedStopId, setExpandedStopId, fetchStopETAs]);
 
   // Group ETAs by stop sequence
   const etasByStop = useMemo(() => {
@@ -186,94 +190,88 @@ export default function RouteDetailPage() {
 
   return (
     <Box sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
-      {/* Fixed header and map section */}
-      <Box sx={{ flex: showMap ? '0 0 auto' : '0 0 auto' }}>
-        {/* Header */}
-        <PageHeader
-          title={`${currentRoute.routeNumber} ${t('to')} ${destination}`}
-          showBack
-          rightContent={<FavoriteButton route={currentRoute} size="small" />}
-        />
+      {/* Header */}
+      <PageHeader
+        title={`${currentRoute.routeNumber} ${t('to')} ${destination}`}
+        showBack
+        rightContent={<FavoriteButton route={currentRoute} size="small" />}
+      />
 
-        {/* Map section - takes 35% of screen when visible */}
-        <Collapse in={showMap}>
-          <Box sx={{ height: '35vh', position: 'relative' }}>
-            <RouteMap
-              stops={currentRoute.stops}
-              selectedStopId={expandedStopId}
-              userLocation={userLocation}
-              onStopSelect={handleMapStopSelect}
-            />
+      {/* Map section - fixed at top, takes 35% of screen when visible */}
+      <Collapse in={showMap}>
+        <Box sx={{ height: '35vh', flex: '0 0 auto', position: 'relative' }}>
+          <RouteMap
+            stops={currentRoute.stops}
+            selectedStopId={expandedStopId}
+            userLocation={userLocation}
+            onStopSelect={handleMapStopSelect}
+          />
 
-            {/* Map toggle button */}
-            <Fab
-              size="small"
-              onClick={() => setShowMap(false)}
-              sx={{
-                position: 'absolute',
-                top: 8,
-                left: 8,
-                bgcolor: 'background.paper',
-                color: 'text.primary',
-                '&:hover': { bgcolor: 'background.paper' },
-              }}
-            >
-              <CloseIcon fontSize="small" />
-            </Fab>
+          {/* Map toggle button */}
+          <Fab
+            size="small"
+            onClick={() => setShowMap(false)}
+            sx={{
+              position: 'absolute',
+              top: 8,
+              left: 8,
+              bgcolor: 'background.paper',
+              color: 'text.primary',
+              '&:hover': { bgcolor: 'background.paper' },
+            }}
+          >
+            <CloseIcon fontSize="small" />
+          </Fab>
+        </Box>
+      </Collapse>
+
+      {/* Show map button when hidden */}
+      {!showMap && (
+        <Box sx={{ px: 2, pt: 2, flex: '0 0 auto' }}>
+          <Box
+            onClick={() => setShowMap(true)}
+            sx={{
+              py: 1.5,
+              px: 2,
+              bgcolor: 'action.hover',
+              borderRadius: 2,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 1,
+              cursor: 'pointer',
+              '&:hover': { bgcolor: 'action.selected' },
+            }}
+          >
+            <MapIcon fontSize="small" color="action" />
+            <Typography variant="bodySmall" color="text.secondary">
+              Show map
+            </Typography>
           </Box>
-        </Collapse>
+        </Box>
+      )}
 
-        {/* Show map button when hidden */}
-        {!showMap && (
-          <Box sx={{ px: 2, pt: 2 }}>
-            <Box
-              onClick={() => setShowMap(true)}
-              sx={{
-                py: 1.5,
-                px: 2,
-                bgcolor: 'action.hover',
-                borderRadius: 2,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 1,
-                cursor: 'pointer',
-                '&:hover': { bgcolor: 'action.selected' },
-              }}
-            >
-              <MapIcon fontSize="small" color="action" />
-              <Typography variant="bodySmall" color="text.secondary">
-                Show map
-              </Typography>
-            </Box>
-          </Box>
-        )}
-      </Box>
+      {/* Scrollable stop list - takes remaining space */}
+      <Box sx={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
+        <Box sx={{ px: 2, py: 1 }}>
+          {currentRoute.stops.map((stop, index) => {
+            const uniqueId = getStopUniqueId(stop);
+            const stopETAs = etasByStop.get(stop.sequence) || [];
 
-      {/* Scrollable content area */}
-      <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-        {/* Stop list - takes remaining space and is scrollable */}
-        <Box sx={{ flex: 1, overflow: 'auto' }}>
-          <Box sx={{ px: 2, py: 1 }}>
-            {currentRoute.stops.map((stop, index) => {
-              const uniqueId = getStopUniqueId(stop);
-              const stopETAs = etasByStop.get(stop.sequence) || [];
-
-              return (
-                <StopRow
-                  key={uniqueId}
-                  stop={stop}
-                  etas={stopETAs}
-                  isExpanded={expandedStopId === uniqueId}
-                  isSelected={expandedStopId === uniqueId}
-                  isLoading={isLoadingETAs && expandedStopId === uniqueId}
-                  onToggle={() => handleStopToggle(uniqueId)}
-                  isFirst={index === 0}
-                  isLast={index === currentRoute.stops.length - 1}
-                />
-              );
-            })}
-          </Box>
+            return (
+              <StopRow
+                key={uniqueId}
+                stop={stop}
+                etas={stopETAs}
+                isExpanded={expandedStopId === uniqueId}
+                isSelected={expandedStopId === uniqueId}
+                isLoading={isLoadingETAs && expandedStopId === uniqueId}
+                onToggle={() => handleStopToggle(uniqueId)}
+                isFirst={index === 0}
+                isLast={index === currentRoute.stops.length - 1}
+              />
+            );
+          })}
         </Box>
       </Box>
     </Box>

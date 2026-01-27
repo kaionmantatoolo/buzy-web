@@ -40,7 +40,7 @@ export default function NearbyPage() {
   // Check permission status without requesting (Safari-safe)
   useEffect(() => {
     const hasGeolocation = 'geolocation' in navigator;
-    
+
     if (!hasGeolocation) {
       setPermissionStatus('denied');
       return;
@@ -52,24 +52,7 @@ export default function NearbyPage() {
     if ('permissions' in navigator) {
       navigator.permissions.query({ name: 'geolocation' as PermissionName }).then((result) => {
         setPermissionStatus(result.state as 'granted' | 'denied' | 'prompt');
-        
-        // If already granted, try to get location silently (Chrome/Firefox)
-        if (result.state === 'granted' && !userLocation && geo) {
-          geo.getCurrentPosition(
-            (position) => {
-              setUserLocation({
-                lat: position.coords.latitude,
-                lng: position.coords.longitude,
-              });
-            },
-            (error) => {
-              // Silent fail - user will need to click button
-              console.log('Silent location fetch failed:', error);
-            },
-            { enableHighAccuracy: true, timeout: 5000, maximumAge: 60000 }
-          );
-        }
-        
+
         // Listen for permission changes
         result.onchange = () => {
           setPermissionStatus(result.state as 'granted' | 'denied' | 'prompt');
@@ -80,85 +63,14 @@ export default function NearbyPage() {
       });
     } else {
       // Permissions API not available (Safari)
-      // Try silent location request once - Safari allows this if permission was previously granted
-      // If it fails silently, we'll show the button
-      if (!userLocation && geo) {
-        geo.getCurrentPosition(
-          (position) => {
-            // Success! Permission was already granted
-            setUserLocation({
-              lat: position.coords.latitude,
-              lng: position.coords.longitude,
-            });
-            setPermissionStatus('granted');
-          },
-          (error) => {
-            // Silent fail - Safari requires user gesture for new requests
-            // Don't set error state, just show the button
-            if (error.code === error.PERMISSION_DENIED) {
-              setPermissionStatus('denied');
-            } else {
-              setPermissionStatus('prompt');
-            }
-          },
-          { enableHighAccuracy: true, timeout: 3000, maximumAge: 60000 }
-        );
-      } else if (userLocation) {
+      if (userLocation) {
         setPermissionStatus('granted');
       } else {
         setPermissionStatus('prompt');
       }
     }
-  }, [userLocation, setUserLocation]);
+  }, [userLocation]);
 
-  // Re-check permission when page becomes visible (user returns from settings)
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible' && !userLocation && permissionStatus === 'denied') {
-        // User might have granted permission in settings, try to detect it
-        const geo = navigator.geolocation;
-        if (geo && 'permissions' in navigator) {
-          // Chrome/Firefox: check permission status
-          navigator.permissions.query({ name: 'geolocation' as PermissionName }).then((result) => {
-            if (result.state === 'granted') {
-              setPermissionStatus('granted');
-              // Try to get location
-              geo.getCurrentPosition(
-                (position) => {
-                  setUserLocation({
-                    lat: position.coords.latitude,
-                    lng: position.coords.longitude,
-                  });
-                },
-                () => {
-                  // Still need user gesture
-                },
-                { enableHighAccuracy: true, timeout: 5000, maximumAge: 60000 }
-              );
-            }
-          });
-        } else if (geo) {
-          // Safari: try silent request (might work if permission was granted)
-          geo.getCurrentPosition(
-            (position) => {
-              setUserLocation({
-                lat: position.coords.latitude,
-                lng: position.coords.longitude,
-              });
-              setPermissionStatus('granted');
-            },
-            () => {
-              // Still denied or needs user gesture
-            },
-            { enableHighAccuracy: true, timeout: 3000, maximumAge: 60000 }
-          );
-        }
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [userLocation, permissionStatus, setUserLocation]);
 
   const requestLocation = useCallback(() => {
     if (!('geolocation' in navigator)) {
