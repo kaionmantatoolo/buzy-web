@@ -38,7 +38,6 @@ export default function RouteDetailPage() {
     expandedStopId,
     isLoadingETAs,
     setCurrentRoute,
-    fetchRouteETAs,
     fetchStopETAs,
     setExpandedStopId,
     clearRouteETAs,
@@ -74,16 +73,13 @@ export default function RouteDetailPage() {
     }
   }, [routes, routeNumber, bound, serviceType, company, setCurrentRoute, router]);
 
-  // Fetch ETAs on mount and set up refresh interval
+  // Set up refresh interval for expanded stop ETAs only
   useEffect(() => {
-    if (currentRoute) {
-      // Initial fetch: no toast
-      fetchRouteETAs();
-
+    if (currentRoute && expandedStopId) {
       refreshIntervalRef.current = setInterval(() => {
-        // Background refresh: no toast notification
+        // Background refresh for expanded stop only
         isRefreshingRef.current = true;
-        fetchRouteETAs().finally(() => {
+        fetchStopETAs(expandedStopId).finally(() => {
           isRefreshingRef.current = false;
         });
       }, 15000);
@@ -93,9 +89,8 @@ export default function RouteDetailPage() {
       if (refreshIntervalRef.current) {
         clearInterval(refreshIntervalRef.current);
       }
-      clearRouteETAs();
     };
-  }, [currentRoute, fetchRouteETAs, clearRouteETAs]);
+  }, [currentRoute, expandedStopId, fetchStopETAs]);
 
 
   // Auto-scroll to nearest stop without expanding it
@@ -153,14 +148,14 @@ export default function RouteDetailPage() {
     (stopId: string) => {
       if (expandedStopId === stopId) {
         setExpandedStopId(null);
-        // iOS behavior: when collapsing, go back to route-level ETAs
-        fetchRouteETAs();
+        // Clear ETAs when collapsing stop
+        clearRouteETAs();
       } else {
         setExpandedStopId(stopId);
         fetchStopETAs(stopId);
       }
     },
-    [expandedStopId, setExpandedStopId, fetchStopETAs, fetchRouteETAs]
+    [expandedStopId, setExpandedStopId, fetchStopETAs, clearRouteETAs]
   );
 
   // Handle map stop selection
