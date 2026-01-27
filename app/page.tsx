@@ -306,8 +306,11 @@ export default function NearbyPage() {
   }, [userLocation, updateNearbyRoutes, isBrowser]);
 
   useEffect(() => {
-    // Only run when we have location AND routes are loaded AND we haven't already processed routes
+    // Only run when we have location AND routes are loaded
     if (!userLocation || loadingState !== 'success' || routes.length === 0) return;
+
+    // Avoid kicking off a new update while one is already in progress
+    if (isLoadingNearbyRoutes) return;
 
     // Check if we already have processed nearby routes to avoid infinite loop
     if (processedNearbyRoutes.length > 0 && !isRefreshing) return;
@@ -344,7 +347,7 @@ export default function NearbyPage() {
     }, 100); // Small delay to allow UI to update
 
     return () => clearTimeout(timer);
-  }, [userLocation, loadingState, routes.length, processedNearbyRoutes.length, isRefreshing, isBrowser]); // Removed updateNearbyRoutes from deps - Zustand function is stable
+  }, [userLocation, loadingState, routes.length, processedNearbyRoutes.length, isRefreshing, isLoadingNearbyRoutes, isBrowser]); // Removed updateNearbyRoutes from deps - Zustand function is stable
 
   if (loadingState === 'loading') {
     return <FullPageLoader message={t('fetchingRouteData')} />;
