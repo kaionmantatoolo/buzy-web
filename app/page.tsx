@@ -111,6 +111,55 @@ export default function NearbyPage() {
     }
   }, [userLocation, setUserLocation]);
 
+  // Re-check permission when page becomes visible (user returns from settings)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && !userLocation && permissionStatus === 'denied') {
+        // User might have granted permission in settings, try to detect it
+        const geo = navigator.geolocation;
+        if (geo && 'permissions' in navigator) {
+          // Chrome/Firefox: check permission status
+          navigator.permissions.query({ name: 'geolocation' as PermissionName }).then((result) => {
+            if (result.state === 'granted') {
+              setPermissionStatus('granted');
+              // Try to get location
+              geo.getCurrentPosition(
+                (position) => {
+                  setUserLocation({
+                    lat: position.coords.latitude,
+                    lng: position.coords.longitude,
+                  });
+                },
+                () => {
+                  // Still need user gesture
+                },
+                { enableHighAccuracy: true, timeout: 5000, maximumAge: 60000 }
+              );
+            }
+          });
+        } else if (geo) {
+          // Safari: try silent request (might work if permission was granted)
+          geo.getCurrentPosition(
+            (position) => {
+              setUserLocation({
+                lat: position.coords.latitude,
+                lng: position.coords.longitude,
+              });
+              setPermissionStatus('granted');
+            },
+            () => {
+              // Still denied or needs user gesture
+            },
+            { enableHighAccuracy: true, timeout: 3000, maximumAge: 60000 }
+          );
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [userLocation, permissionStatus, setUserLocation]);
+
   const requestLocation = useCallback(() => {
     if (!('geolocation' in navigator)) {
       setLocationError('Geolocation is not supported by your browser');
@@ -200,19 +249,40 @@ export default function NearbyPage() {
                 {locationError}
               </Typography>
               {permissionDenied && (
-                <Typography variant="bodySmall" color="text.secondary">
-                  On iOS Safari: Settings → Safari → Location → Allow
-                </Typography>
+                <>
+                  <Typography variant="bodySmall" color="text.secondary" sx={{ mb: 1 }}>
+                    On iOS Safari: Settings → Safari → Location Services → Allow
+                  </Typography>
+                  <Typography variant="bodySmall" color="text.secondary">
+                    After enabling in settings, return here and click the button below to request location access.
+                  </Typography>
+                </>
               )}
             </Alert>
             <Button
               variant="contained"
               fullWidth
-              onClick={requestLocation}
+              onClick={(e) => {
+                // Ensure this is a direct user gesture (Safari requirement)
+                e.preventDefault();
+                e.stopPropagation();
+                requestLocation();
+              }}
               startIcon={<LocationOnIcon />}
+              sx={{ mt: 1 }}
             >
-              {t('tryAgain')}
+              {permissionDenied ? 'Request Location Access' : t('tryAgain')}
             </Button>
+            {permissionDenied && (
+              <Button
+                variant="outlined"
+                fullWidth
+                onClick={() => window.location.reload()}
+                sx={{ mt: 1 }}
+              >
+                Refresh Page (After Enabling in Settings)
+              </Button>
+            )}
           </Box>
         )}
 
