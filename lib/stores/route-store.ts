@@ -291,30 +291,15 @@ export const useRouteStore = create<RouteState>((set, get) => ({
           ...filtered.map((eta) => ({ ...eta, seq: nearestStop.sequence }))
         );
 
-        if (route.company === 'CTB' || route.company === 'Both') {
-          try {
-            const ctbStopId = nearestStop.ctbStopId ?? nearestStop.id;
-            const ctbETAs = await fetchETAsForStopOnRoute(route, {
-              ...nearestStop,
-              id: ctbStopId,
-            });
-            routeETAs.push(...ctbETAs);
-          } catch (e) {
-            if (abortController.signal.aborted) {
-              console.log(`[NearbyRoutes] CTB fetch cancelled for ${route.routeNumber}`);
-            } else {
-              console.warn(`[NearbyRoutes] CTB ETAs for ${route.routeNumber}:`, e);
-            }
-          }
-        }
-
+        // Sort KMB ETAs first
         routeETAs.sort((a, b) => {
           if (!a.eta) return 1;
           if (!b.eta) return -1;
           return new Date(a.eta).getTime() - new Date(b.eta).getTime();
         });
 
-        // iOS logic: if !routeETAs.isEmpty, append immediately (incremental display)
+        // iOS logic: Show route immediately with KMB ETAs (if any), don't wait for CTB
+        // This prevents CTB API slowness from blocking incremental display
         if (routeETAs.length > 0) {
           const current = get().processedNearbyRoutes;
           set({
@@ -323,9 +308,54 @@ export const useRouteStore = create<RouteState>((set, get) => ({
               { route, nearestStop, etas: routeETAs, distance },
             ],
           });
-          console.log(`[NearbyRoutes] Added route ${route.routeNumber} (${current.length + 1} total)`);
+          console.log(`[NearbyRoutes] Added route ${route.routeNumber} with KMB ETAs (${current.length + 1} total)`);
           // Small delay for smoother incremental display (like iOS 0.08s)
           await new Promise((resolve) => setTimeout(resolve, 80));
+        }
+
+        // Fetch CTB ETAs asynchronously and update route when they arrive (non-blocking)
+        if ((route.company === 'CTB' || route.company === 'Both') && !abortController.signal.aborted) {
+          // Don't await - let it run in background and update when done
+          fetchETAsForStopOnRoute(route, {
+            ...nearestStop,
+            id: nearestStop.ctbStopId ?? nearestStop.id,
+          })
+            .then((ctbETAs) => {
+              // Check if still valid (not cancelled, route still exists)
+              if (abortController.signal.aborted) {
+                console.log(`[NearbyRoutes] CTB fetch completed but update cancelled for ${route.routeNumber}`);
+                return;
+              }
+
+              const current = get().processedNearbyRoutes;
+              const routeIndex = current.findIndex((r) => r.route.id === route.id);
+              if (routeIndex === -1) return; // Route was removed
+
+              // Merge CTB ETAs with existing ETAs
+              const existingETAs = current[routeIndex].etas;
+              const allETAs = [...existingETAs, ...ctbETAs];
+              allETAs.sort((a, b) => {
+                if (!a.eta) return 1;
+                if (!b.eta) return -1;
+                return new Date(a.eta).getTime() - new Date(b.eta).getTime();
+              });
+
+              // Update the route with merged ETAs
+              const updated = [...current];
+              updated[routeIndex] = {
+                ...updated[routeIndex],
+                etas: allETAs,
+              };
+              set({ processedNearbyRoutes: updated });
+              console.log(`[NearbyRoutes] Updated route ${route.routeNumber} with CTB ETAs`);
+            })
+            .catch((e) => {
+              if (abortController.signal.aborted) {
+                console.log(`[NearbyRoutes] CTB fetch cancelled for ${route.routeNumber}`);
+              } else {
+                console.warn(`[NearbyRoutes] CTB ETAs for ${route.routeNumber}:`, e);
+              }
+            });
         }
       }
       

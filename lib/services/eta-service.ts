@@ -108,13 +108,14 @@ async function fetchCTBETAForStopAndRoute(
   const url = `${CTB_API_BASE}/eta/CTB/${stopId}/${routeNumber}`;
   
   try {
-    const response = await fetch(url);
+    // Use timeout to prevent hanging (CTB API can be slow)
+    const response = await fetchWithTimeout(url);
     if (!response.ok) {
       // 422 is common for invalid stop/route combo
       if (response.status === 422) {
         return [];
       }
-      console.error(`CTB API error: ${response.status}`);
+      console.warn(`CTB API error: ${response.status} for stop ${stopId}, route ${routeNumber}`);
       return [];
     }
     
@@ -138,7 +139,11 @@ async function fetchCTBETAForStopAndRoute(
       data_timestamp: ctbEta.data_timestamp,
     }));
   } catch (error) {
-    console.error('Error fetching CTB ETAs:', error);
+    if ((error as Error)?.name === 'AbortError') {
+      console.warn(`CTB stop-eta timeout for stop ${stopId}, route ${routeNumber}`);
+    } else {
+      console.warn(`Error fetching CTB ETAs for stop ${stopId}, route ${routeNumber}:`, error);
+    }
     return [];
   }
 }
