@@ -186,6 +186,16 @@ export default function NearbyPage() {
     setLocationError(null);
     setPermissionDenied(false);
 
+    // Watchdog: some browsers/devices may never call either callback.
+    // Ensure we don't get stuck in a "finding nearby routes" spinner forever.
+    let finished = false;
+    const watchdog = window.setTimeout(() => {
+      if (finished) return;
+      finished = true;
+      setIsRequestingLocation(false);
+      setLocationError('Location request is taking too long. Please try again.');
+    }, 12_000);
+
     // Check if we're on HTTPS (required for Safari)
     if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
       console.warn('[Location] Not on HTTPS - Safari may block location requests');
@@ -197,6 +207,10 @@ export default function NearbyPage() {
 
     navigator.geolocation.getCurrentPosition(
       (position) => {
+        if (!finished) {
+          finished = true;
+          window.clearTimeout(watchdog);
+        }
         const location = {
           lat: position.coords.latitude,
           lng: position.coords.longitude,
@@ -218,6 +232,10 @@ export default function NearbyPage() {
         }
       },
       (error) => {
+        if (!finished) {
+          finished = true;
+          window.clearTimeout(watchdog);
+        }
         console.error('[Location] Geolocation error:', error);
         console.error('[Location] Error code:', error.code);
         console.error('[Location] Error message:', error.message);
