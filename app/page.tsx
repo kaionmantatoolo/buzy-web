@@ -282,11 +282,15 @@ export default function NearbyPage() {
       setIsRefreshing(true);
       updateNearbyRoutes().then(() => {
         // Save to cache after successful update
-        if (isBrowser && processedNearbyRoutes.length > 0) {
+        if (isBrowser) {
           try {
-            sessionStorage.setItem(CACHE_KEY, JSON.stringify(processedNearbyRoutes));
-            sessionStorage.setItem(CACHE_TIMESTAMP_KEY, Date.now().toString());
-            setLastRefreshTime(new Date().toLocaleTimeString());
+            // Get fresh data from store after update
+            const freshProcessedRoutes = useRouteStore.getState().processedNearbyRoutes;
+            if (freshProcessedRoutes.length > 0) {
+              sessionStorage.setItem(CACHE_KEY, JSON.stringify(freshProcessedRoutes));
+              sessionStorage.setItem(CACHE_TIMESTAMP_KEY, Date.now().toString());
+              setLastRefreshTime(new Date().toLocaleTimeString());
+            }
           } catch (error) {
             console.error('Error saving to cache:', error);
           }
@@ -294,11 +298,15 @@ export default function NearbyPage() {
         setIsRefreshing(false);
       });
     }
-  }, [userLocation, updateNearbyRoutes, processedNearbyRoutes]);
+  }, [userLocation, updateNearbyRoutes]);
 
   useEffect(() => {
-    // Only run when we have location AND routes are loaded
+    // Only run when we have location AND routes are loaded AND we haven't already processed routes
     if (!userLocation || loadingState !== 'success' || routes.length === 0) return;
+
+    // Check if we already have processed nearby routes to avoid infinite loop
+    if (processedNearbyRoutes.length > 0 && !isRefreshing) return;
+
     console.log('[NearbyPage] Effect triggered: updating nearby routes');
 
     // If we're not refreshing and have cached data, use it temporarily
@@ -308,18 +316,22 @@ export default function NearbyPage() {
 
     updateNearbyRoutes().then(() => {
       // Save to cache after successful update
-      if (isBrowser && processedNearbyRoutes.length > 0) {
+      if (isBrowser) {
         try {
-          sessionStorage.setItem(CACHE_KEY, JSON.stringify(processedNearbyRoutes));
-          sessionStorage.setItem(CACHE_TIMESTAMP_KEY, Date.now().toString());
-          setLastRefreshTime(new Date().toLocaleTimeString());
+          // Get fresh data from store after update
+          const freshProcessedRoutes = useRouteStore.getState().processedNearbyRoutes;
+          if (freshProcessedRoutes.length > 0) {
+            sessionStorage.setItem(CACHE_KEY, JSON.stringify(freshProcessedRoutes));
+            sessionStorage.setItem(CACHE_TIMESTAMP_KEY, Date.now().toString());
+            setLastRefreshTime(new Date().toLocaleTimeString());
+          }
         } catch (error) {
           console.error('Error saving to cache:', error);
         }
       }
       setIsRefreshing(false);
     });
-  }, [userLocation, discoveryRange, loadingState, routes.length, isRefreshing]); // Removed updateNearbyRoutes from deps - Zustand function is stable
+  }, [userLocation, loadingState, routes.length, processedNearbyRoutes.length, isRefreshing]); // Removed updateNearbyRoutes from deps - Zustand function is stable
 
   if (loadingState === 'loading') {
     return <FullPageLoader message={t('fetchingRouteData')} />;
