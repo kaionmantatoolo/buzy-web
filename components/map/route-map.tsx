@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
+import { Box } from '@mui/material';
 import { StopDetail, getStopLocation, getStopName } from '@/lib/types';
 import { useSettingsStore } from '@/lib/stores';
 
@@ -119,9 +120,25 @@ export function RouteMap({
         const userIcon = L.divIcon({
           className: 'user-location-marker',
           html: `
-            <div class="relative">
-              <div class="absolute w-8 h-8 bg-blue-500/30 rounded-full animate-ping"></div>
-              <div class="relative w-4 h-4 bg-blue-500 border-2 border-white rounded-full shadow-lg"></div>
+            <div style="position: relative;">
+              <div style="
+                position: absolute;
+                width: 32px;
+                height: 32px;
+                background: rgba(59, 130, 246, 0.3);
+                border-radius: 50%;
+                animation: pulse 2s infinite;
+                top: -8px;
+                left: -8px;
+              "></div>
+              <div style="
+                width: 16px;
+                height: 16px;
+                background: #3b82f6;
+                border: 2px solid white;
+                border-radius: 50%;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+              "></div>
             </div>
           `,
           iconSize: [16, 16],
@@ -157,7 +174,7 @@ export function RouteMap({
     });
     
     polylineRef.current = L.polyline(coordinates, {
-      color: '#3b82f6',
+      color: '#1565C0',
       weight: 4,
       opacity: 0.7,
       lineJoin: 'round',
@@ -200,17 +217,40 @@ export function RouteMap({
       const isFirst = index === 0;
       const isLast = index === stops.length - 1;
       
+      // Determine colors
+      let bgColor = '#ffffff';
+      let borderColor = '#9ca3af';
+      let textColor = '#374151';
+      
+      if (isSelected) {
+        bgColor = '#1565C0';
+        borderColor = '#1565C0';
+        textColor = '#ffffff';
+      } else if (isFirst || isLast) {
+        bgColor = '#f97316';
+        borderColor = '#f97316';
+        textColor = '#ffffff';
+      }
+      
       // Create custom icon
       const icon = L.divIcon({
         className: 'stop-marker',
         html: `
-          <div class="flex items-center justify-center w-6 h-6 rounded-full border-2 text-xs font-bold
-            ${isSelected 
-              ? 'bg-primary-500 border-primary-500 text-white' 
-              : isFirst || isLast
-                ? 'bg-orange-500 border-orange-500 text-white'
-                : 'bg-white border-gray-400 text-gray-700'
-            }">
+          <div style="
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            border: 2px solid ${borderColor};
+            background: ${bgColor};
+            color: ${textColor};
+            font-size: 11px;
+            font-weight: 700;
+            font-family: system-ui, -apple-system, sans-serif;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+          ">
             ${stop.sequence}
           </div>
         `,
@@ -221,7 +261,7 @@ export function RouteMap({
       const marker = L.marker([loc.lat, loc.lng], { icon })
         .addTo(mapInstanceRef.current!)
         .bindPopup(`
-          <div class="text-sm">
+          <div style="font-size: 14px; font-family: system-ui, -apple-system, sans-serif;">
             <strong>${stop.sequence}. ${stopName}</strong>
           </div>
         `);
@@ -253,6 +293,21 @@ export function RouteMap({
   };
 
   return (
-    <div ref={mapRef} className="w-full h-full min-h-[300px] bg-gray-100 dark:bg-gray-800 rounded-lg overflow-hidden" />
+    <Box
+      ref={mapRef}
+      sx={{
+        width: '100%',
+        height: '100%',
+        minHeight: 300,
+        bgcolor: 'action.hover',
+        borderRadius: 2,
+        overflow: 'hidden',
+        '& .leaflet-container': {
+          width: '100%',
+          height: '100%',
+          fontFamily: 'inherit',
+        },
+      }}
+    />
   );
 }
