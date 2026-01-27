@@ -112,6 +112,9 @@ export function StopRow({
           pr: 2,
           py: 1.5,
           display: 'block',
+          '&:active': {
+            bgcolor: 'action.selected',
+          },
         }}
       >
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2 }}>
@@ -153,8 +156,8 @@ export function StopRow({
         </Box>
       </ButtonBase>
 
-      {/* Expanded ETA details */}
-      <Collapse in={isExpanded}>
+      {/* Expanded ETA details with enhanced styling */}
+      <Collapse in={isExpanded} timeout={200}>
         <Box sx={{ pl: 7, pr: 2, pb: 2 }}>
           <Box
             sx={{
@@ -164,6 +167,9 @@ export function StopRow({
               borderColor: 'divider',
               px: 1.5,
               py: 1.25,
+              boxShadow: (theme) => theme.palette.mode === 'light'
+                ? '0 2px 8px rgba(0,0,0,0.08)'
+                : '0 2px 8px rgba(0,0,0,0.2)',
             }}
           >
             {isLoading && etas.length === 0 ? (

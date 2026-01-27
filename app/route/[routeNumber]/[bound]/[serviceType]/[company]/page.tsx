@@ -117,14 +117,24 @@ export default function RouteDetailPage() {
       fetchStopETAs(nearestStopId);
 
       // Auto-scroll to the nearest stop after a short delay to ensure DOM is updated
+      // Account for fixed header and map height
       setTimeout(() => {
         const element = document.getElementById(`stop-${nearestStopId}`);
         if (element) {
-          element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          element.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+          // Adjust scroll position to account for fixed elements
+          const headerHeight = 56; // Approximate header height
+          const mapHeight = showMap ? window.innerHeight * 0.35 : 0; // 35% of viewport height
+          const totalOffset = headerHeight + mapHeight + 16; // Add some padding
+
+          if (window.scrollY > totalOffset) {
+            window.scrollBy(0, -totalOffset);
+          }
         }
       }, 100);
     }
-  }, [currentRoute, userLocation, expandedStopId, setExpandedStopId, fetchStopETAs]);
+  }, [currentRoute, userLocation, expandedStopId, setExpandedStopId, fetchStopETAs, showMap]);
 
   // Group ETAs by stop sequence
   const etasByStop = useMemo(() => {
@@ -189,9 +199,9 @@ export default function RouteDetailPage() {
   const destination = getRouteDestination(currentRoute, locale, useCTBInfo);
 
   return (
-    <Box sx={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
-      {/* Fixed header */}
-      <Box sx={{ flex: '0 0 auto' }}>
+    <Box sx={{ height: '100vh', display: 'flex', flexDirection: 'column', bgcolor: 'background.default' }}>
+      {/* Fixed header with shadow */}
+      <Box sx={{ flex: '0 0 auto', boxShadow: 1 }}>
         <PageHeader
           title={`${currentRoute.routeNumber} ${t('to')} ${destination}`}
           showBack
@@ -209,17 +219,22 @@ export default function RouteDetailPage() {
             onStopSelect={handleMapStopSelect}
           />
 
-          {/* Map toggle button */}
+          {/* Map toggle button with better styling */}
           <Fab
             size="small"
             onClick={() => setShowMap(false)}
             sx={{
               position: 'absolute',
-              top: 8,
-              left: 8,
+              top: 12,
+              left: 12,
               bgcolor: 'background.paper',
               color: 'text.primary',
-              '&:hover': { bgcolor: 'background.paper' },
+              '&:hover': {
+                bgcolor: 'background.paper',
+                transform: 'scale(1.05)',
+              },
+              transition: 'transform 0.2s',
+              boxShadow: 3,
             }}
           >
             <CloseIcon fontSize="small" />
@@ -227,7 +242,7 @@ export default function RouteDetailPage() {
         </Box>
       </Collapse>
 
-      {/* Show map button when hidden */}
+      {/* Show map button when hidden - enhanced styling */}
       {!showMap && (
         <Box sx={{ px: 2, pt: 2, flex: '0 0 auto' }}>
           <Box
@@ -236,26 +251,31 @@ export default function RouteDetailPage() {
               py: 1.5,
               px: 2,
               bgcolor: 'action.hover',
-              borderRadius: 2,
+              borderRadius: 3,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               gap: 1,
               cursor: 'pointer',
-              '&:hover': { bgcolor: 'action.selected' },
+              '&:hover': {
+                bgcolor: 'action.selected',
+                transform: 'translateY(-1px)',
+              },
+              transition: 'all 0.2s',
+              boxShadow: 1,
             }}
           >
             <MapIcon fontSize="small" color="action" />
-            <Typography variant="bodySmall" color="text.secondary">
-              Show map
+            <Typography variant="bodySmall" color="text.secondary" sx={{ fontWeight: 500 }}>
+              Show Map
             </Typography>
           </Box>
         </Box>
       )}
 
       {/* Scrollable stop list - takes remaining space */}
-      <Box sx={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
-        <Box sx={{ px: 2, py: 1 }}>
+      <Box sx={{ flex: 1, overflow: 'auto', minHeight: 0, pt: showMap ? '35vh' : 0 }}>
+        <Box sx={{ px: 2, py: 1, mt: showMap ? '-35vh' : 0 }}>
           {currentRoute.stops.map((stop, index) => {
             const uniqueId = getStopUniqueId(stop);
             const stopETAs = etasByStop.get(stop.sequence) || [];

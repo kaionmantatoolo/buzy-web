@@ -401,24 +401,36 @@ export default function NearbyPage() {
           <Box
             sx={{
               textAlign: 'center',
-              py: 10,
+              py: 8,
               px: 3,
-              borderRadius: 3,
               mx: 2,
-              bgcolor: (theme) => alpha(theme.palette.primary.main, 0.08),
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              minHeight: '60vh',
             }}
           >
-            <LocationOnIcon sx={{ fontSize: 56, color: 'primary.main', mb: 2 }} />
-            <Typography variant="titleMedium" gutterBottom>
+            <Box
+              sx={{
+                p: 3,
+                borderRadius: 3,
+                bgcolor: (theme) => alpha(theme.palette.primary.main, 0.08),
+                mb: 3,
+              }}
+            >
+              <LocationOnIcon sx={{ fontSize: 56, color: 'primary.main' }} />
+            </Box>
+            <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
               {t('locationNeeded')}
             </Typography>
-            <Typography variant="bodyMedium" color="text.secondary" sx={{ mb: 3 }}>
-              {permissionStatus === 'denied' 
-                ? 'Location permission was denied. Please click the button below to request access again, or enable it in your browser settings.'
-                : 'Enable location to find nearby bus stops. Safari requires you to click the button below.'}
+            <Typography variant="bodyMedium" color="text.secondary" sx={{ mb: 3, textAlign: 'center' }}>
+              {permissionStatus === 'denied'
+                ? 'Location permission was denied. Please enable it in your browser settings.'
+                : 'Enable location to find nearby bus stops.'}
             </Typography>
             {permissionStatus === 'denied' && (
-              <Typography variant="bodySmall" color="text.secondary" sx={{ mb: 2 }}>
+              <Typography variant="bodySmall" color="text.secondary" sx={{ mb: 2, textAlign: 'center' }}>
                 iOS Safari: Settings → Safari → Location Services → Allow
               </Typography>
             )}
@@ -426,7 +438,16 @@ export default function NearbyPage() {
               variant="contained"
               onClick={requestLocation}
               startIcon={<LocationOnIcon />}
-              sx={{ borderRadius: '20px' }}
+              size="large"
+              sx={{
+                borderRadius: '28px',
+                px: 4,
+                py: 1.5,
+                boxShadow: 2,
+                '&:hover': {
+                  boxShadow: 4,
+                }
+              }}
             >
               {permissionStatus === 'denied' ? 'Request Location Access' : 'Enable Location'}
             </Button>
@@ -466,7 +487,12 @@ export default function NearbyPage() {
                 size="small"
                 onClick={handleRefresh}
                 disabled={isRefreshing}
-                sx={{ p: 0.5 }}
+                sx={{
+                  p: 0.5,
+                  '&:hover': {
+                    bgcolor: (theme) => alpha(theme.palette.primary.main, 0.12),
+                  }
+                }}
               >
                 <RefreshIcon sx={{ fontSize: 16 }} />
               </IconButton>
@@ -514,8 +540,23 @@ export default function NearbyPage() {
               </>
             ) : loadingState === 'success' ? (
               <Box sx={{ textAlign: 'center', py: 10, px: 2 }}>
-                <MapIcon sx={{ fontSize: 56, color: 'text.disabled', mb: 2 }} />
-                <Typography color="text.secondary">{t('noNearbyRoutes')}</Typography>
+                <Box
+                  sx={{
+                    p: 2,
+                    borderRadius: '50%',
+                    bgcolor: (theme) => alpha(theme.palette.text.disabled, 0.08),
+                    display: 'inline-flex',
+                    mb: 2,
+                  }}
+                >
+                  <MapIcon sx={{ fontSize: 40, color: 'text.disabled' }} />
+                </Box>
+                <Typography variant="h6" color="text.secondary" sx={{ mb: 1 }}>
+                  No Nearby Routes
+                </Typography>
+                <Typography variant="bodyMedium" color="text.secondary">
+                  {t('noNearbyRoutes')}
+                </Typography>
               </Box>
             ) : null}
           </Box>
