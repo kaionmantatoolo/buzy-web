@@ -217,9 +217,11 @@ export default function SearchPage() {
               elevation={1}
               sx={{
                 flex: 1,
-                p: 1.25,
+                // Extra inset so corner keys never touch rounded edges
+                p: 1.5,
                 bgcolor: 'surfaceVariant.main',
-                borderRadius: 4,
+                // Smaller radius so the frame doesn't intrude into corner keys
+                borderRadius: 3,
               }}
             >
               <Stack spacing={1.25}>
@@ -275,9 +277,10 @@ export default function SearchPage() {
               elevation={1}
               sx={{
                 width: 56,
-                p: 1.25,
+                // Extra inset so corner letters never touch rounded edges
+                p: 1.5,
                 bgcolor: 'surfaceVariant.main',
-                borderRadius: 4,
+                borderRadius: 3,
                 height: 4 * 56 + 3 * 5,
                 display: 'flex',
                 flexDirection: 'column',
