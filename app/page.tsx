@@ -39,19 +39,23 @@ export default function NearbyPage() {
 
   // Check permission status without requesting (Safari-safe)
   useEffect(() => {
-    if (!('geolocation' in navigator)) {
+    const hasGeolocation = 'geolocation' in navigator;
+    
+    if (!hasGeolocation) {
       setPermissionStatus('denied');
       return;
     }
+
+    const geo = navigator.geolocation;
 
     // Use Permissions API if available (Chrome, Firefox, but not Safari)
     if ('permissions' in navigator) {
       navigator.permissions.query({ name: 'geolocation' as PermissionName }).then((result) => {
         setPermissionStatus(result.state as 'granted' | 'denied' | 'prompt');
         
-        // If already granted, try to get location silently (Safari allows this)
-        if (result.state === 'granted' && !userLocation) {
-          navigator.geolocation.getCurrentPosition(
+        // If already granted, try to get location silently (Chrome/Firefox)
+        if (result.state === 'granted' && !userLocation && geo) {
+          geo.getCurrentPosition(
             (position) => {
               setUserLocation({
                 lat: position.coords.latitude,
@@ -75,8 +79,35 @@ export default function NearbyPage() {
         setPermissionStatus('prompt');
       });
     } else {
-      // Permissions API not available (Safari), default to prompt
-      setPermissionStatus('prompt');
+      // Permissions API not available (Safari)
+      // Try silent location request once - Safari allows this if permission was previously granted
+      // If it fails silently, we'll show the button
+      if (!userLocation && geo) {
+        geo.getCurrentPosition(
+          (position) => {
+            // Success! Permission was already granted
+            setUserLocation({
+              lat: position.coords.latitude,
+              lng: position.coords.longitude,
+            });
+            setPermissionStatus('granted');
+          },
+          (error) => {
+            // Silent fail - Safari requires user gesture for new requests
+            // Don't set error state, just show the button
+            if (error.code === error.PERMISSION_DENIED) {
+              setPermissionStatus('denied');
+            } else {
+              setPermissionStatus('prompt');
+            }
+          },
+          { enableHighAccuracy: true, timeout: 3000, maximumAge: 60000 }
+        );
+      } else if (userLocation) {
+        setPermissionStatus('granted');
+      } else {
+        setPermissionStatus('prompt');
+      }
     }
   }, [userLocation, setUserLocation]);
 
