@@ -118,10 +118,15 @@ export default function RouteDetailPage() {
 
       // Auto-scroll to the nearest stop after a short delay to ensure DOM is updated
       // Account for fixed header and map height
+      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+
       setTimeout(() => {
         const element = document.getElementById(`stop-${nearestStopId}`);
         if (element) {
-          element.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          // Use instant scroll on mobile for better performance
+          const behavior = isMobile ? 'instant' : 'smooth';
+
+          element.scrollIntoView({ behavior, block: 'nearest' });
 
           // Adjust scroll position to account for fixed elements
           const headerHeight = 56; // Approximate header height
@@ -132,7 +137,7 @@ export default function RouteDetailPage() {
             window.scrollBy(0, -totalOffset);
           }
         }
-      }, 100);
+      }, isMobile ? 50 : 100); // Faster delay on mobile
     }
   }, [currentRoute, userLocation, expandedStopId, setExpandedStopId, fetchStopETAs, showMap]);
 

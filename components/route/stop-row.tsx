@@ -10,6 +10,7 @@ import {
   alpha,
   useTheme,
 } from '@mui/material';
+import { memo } from 'react';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { StopDetail, RouteETA, getStopName, getStopUniqueId } from '@/lib/types';
 import { CompanyBadge } from '@/components/ui/company-badge';
@@ -28,7 +29,7 @@ interface StopRowProps {
   isLast?: boolean;
 }
 
-export function StopRow({
+export const StopRow = memo(function StopRow({
   stop,
   etas,
   isExpanded,
@@ -198,7 +199,7 @@ export function StopRow({
       </Collapse>
     </Box>
   );
-}
+});
 
 // Skeleton for stop row
 export function StopRowSkeleton() {

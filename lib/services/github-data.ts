@@ -1,4 +1,5 @@
 import { Route, HKBusRoute, HKBusStop, StopDetail, BusCompany } from '@/lib/types';
+import { log } from '@/lib/logger';
 
 const HK_BUS_ROUTES_URL = 'https://raw.githubusercontent.com/kaionmantatoolo/buzyData/main/hk_bus_routes.json';
 const CACHE_KEY = 'buzy_routes_cache';
@@ -30,14 +31,14 @@ function getCachedRoutes(): Route[] | null {
     
     // Check if cache is expired
     if (now - cacheTime > CACHE_EXPIRATION_MS) {
-      console.log('GitHubDataService: Cache expired');
+      log.debug('GitHubDataService: Cache expired');
       localStorage.removeItem(CACHE_KEY);
       localStorage.removeItem(CACHE_TIMESTAMP_KEY);
       return null;
     }
     
     const routes = JSON.parse(cached) as Route[];
-    console.log(`GitHubDataService: Loaded ${routes.length} routes from cache`);
+    log.debug(`GitHubDataService: Loaded ${routes.length} routes from cache`);
     return routes;
   } catch (error) {
     console.error('GitHubDataService: Error reading cache:', error);
@@ -54,7 +55,7 @@ function setCachedRoutes(routes: Route[]): void {
   try {
     localStorage.setItem(CACHE_KEY, JSON.stringify(routes));
     localStorage.setItem(CACHE_TIMESTAMP_KEY, Date.now().toString());
-    console.log(`GitHubDataService: Cached ${routes.length} routes`);
+    log.debug(`GitHubDataService: Cached ${routes.length} routes`);
   } catch (error) {
     console.error('GitHubDataService: Error writing cache:', error);
   }
@@ -68,7 +69,7 @@ export function clearRoutesCache(): void {
   
   localStorage.removeItem(CACHE_KEY);
   localStorage.removeItem(CACHE_TIMESTAMP_KEY);
-  console.log('GitHubDataService: Cache cleared');
+  log.debug('GitHubDataService: Cache cleared');
 }
 
 /**
@@ -170,7 +171,7 @@ function processRoutes(busRoutes: HKBusRoute[]): Route[] {
     }
   }
   
-  console.log(`GitHubDataService: Processed ${processedRoutes.length} routes`);
+  log.debug(`GitHubDataService: Processed ${processedRoutes.length} routes`);
   return processedRoutes;
 }
 
@@ -186,7 +187,7 @@ export async function fetchRoutes(forceRefresh = false): Promise<Route[]> {
     }
   }
   
-  console.log('GitHubDataService: Fetching routes from GitHub...');
+  log.debug('GitHubDataService: Fetching routes from GitHub...');
   
   try {
     const response = await fetch(HK_BUS_ROUTES_URL);
@@ -196,7 +197,7 @@ export async function fetchRoutes(forceRefresh = false): Promise<Route[]> {
     }
     
     const rawData: HKBusRoute[] = await response.json();
-    console.log(`GitHubDataService: Fetched ${rawData.length} raw routes`);
+    log.debug(`GitHubDataService: Fetched ${rawData.length} raw routes`);
     
     const routes = processRoutes(rawData);
     
@@ -211,7 +212,7 @@ export async function fetchRoutes(forceRefresh = false): Promise<Route[]> {
     if (!forceRefresh) {
       const cached = getCachedRoutes();
       if (cached && cached.length > 0) {
-        console.log('GitHubDataService: Returning stale cached data due to fetch error');
+        log.debug('GitHubDataService: Returning stale cached data due to fetch error');
         return cached;
       }
     }

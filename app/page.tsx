@@ -20,6 +20,7 @@ import { NearbyRouteRow, NearbyRouteRowSkeleton } from '@/components/route';
 import { FullPageLoader } from '@/components/ui';
 import { useRouteStore, useSettingsStore } from '@/lib/stores';
 import { useTranslation } from '@/lib/i18n';
+import { log } from '@/lib/logger';
 
 export default function NearbyPage() {
   const { t } = useTranslation();
@@ -107,8 +108,12 @@ export default function NearbyPage() {
     // Check permission status
     const geo = navigator.geolocation;
 
+    // Detect if this is a mobile device
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+
     // Use Permissions API if available (Chrome, Firefox, but not Safari)
-    if ('permissions' in navigator) {
+    if ('permissions' in navigator && !isMobile) {
+      // Only use Permissions API on desktop for better mobile performance
       navigator.permissions.query({ name: 'geolocation' as PermissionName }).then((result) => {
         setPermissionStatus(result.state as 'granted' | 'denied' | 'prompt');
 
@@ -132,65 +137,26 @@ export default function NearbyPage() {
               }
             },
             (error) => {
-              console.log('Silent location fetch failed:', error);
+              log.debug('Silent location fetch failed:', error);
             },
-            { enableHighAccuracy: true, timeout: 5000, maximumAge: 300000 } // 5 minute maximum age
+            { enableHighAccuracy: false, timeout: 3000, maximumAge: 300000 } // Lower timeout and accuracy for mobile
           );
         }
 
         // Listen for permission changes
         result.onchange = () => {
           setPermissionStatus(result.state as 'granted' | 'denied' | 'prompt');
-
-          // If permission becomes granted, get location
-          if (result.state === 'granted' && !userLocation) {
-            geo.getCurrentPosition(
-              (position) => {
-                const location = {
-                  lat: position.coords.latitude,
-                  lng: position.coords.longitude,
-                };
-                setUserLocation(location);
-
-                // Cache the location
-                try {
-                  localStorage.setItem(LOCATION_CACHE_KEY, JSON.stringify(location));
-                  localStorage.setItem(`${LOCATION_CACHE_KEY}_timestamp`, Date.now().toString());
-                } catch (error) {
-                  console.error('Error caching location:', error);
-                }
-              },
-              (error) => {
-                console.error('Location fetch failed:', error);
-              },
-              { enableHighAccuracy: true, timeout: 10000, maximumAge: 300000 }
-            );
-          }
         };
       }).catch(() => {
         // Permissions API not supported, default to prompt
         setPermissionStatus('prompt');
-
-        // For browsers without Permissions API, if we have cached location, use it
-        if (!userLocation) {
-          try {
-            const cachedLocation = localStorage.getItem(LOCATION_CACHE_KEY);
-            if (cachedLocation) {
-              const location = JSON.parse(cachedLocation);
-              setUserLocation(location);
-              setPermissionStatus('granted');
-            }
-          } catch (error) {
-            console.error('Error loading cached location:', error);
-          }
-        }
       });
     } else {
-      // Permissions API not available (Safari)
+      // Simplified approach for mobile devices and Safari
       if (userLocation) {
         setPermissionStatus('granted');
       } else {
-        // For Safari, check if we have cached location
+        // Check if we have cached location
         try {
           const cachedLocation = localStorage.getItem(LOCATION_CACHE_KEY);
           if (cachedLocation) {
@@ -215,7 +181,7 @@ export default function NearbyPage() {
       return;
     }
 
-    console.log('[Location] Requesting location with user gesture');
+    log.debug('[Location] Requesting location with user gesture');
     setIsRequestingLocation(true);
     setLocationError(null);
     setPermissionDenied(false);
@@ -224,6 +190,10 @@ export default function NearbyPage() {
     if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
       console.warn('[Location] Not on HTTPS - Safari may block location requests');
     }
+
+    // Use lower accuracy for mobile devices to improve performance
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    const enableHighAccuracy = !isMobile; // Disable high accuracy on mobile for better performance
 
     navigator.geolocation.getCurrentPosition(
       (position) => {
@@ -270,9 +240,9 @@ export default function NearbyPage() {
         }
       },
       {
-        enableHighAccuracy: true,
-        timeout: 15000,
-        maximumAge: 60000,
+        enableHighAccuracy: enableHighAccuracy,
+        timeout: 10000, // Reduced timeout for better responsiveness
+        maximumAge: 300000, // 5 minutes
       }
     );
   }, [setUserLocation, isBrowser]);
@@ -280,6 +250,14 @@ export default function NearbyPage() {
   const handleRefresh = useCallback(() => {
     if (userLocation) {
       setIsRefreshing(true);
+
+      // Clear cache timestamp to force fresh data
+      try {
+        sessionStorage.removeItem(CACHE_TIMESTAMP_KEY);
+      } catch (error) {
+        console.error('Error clearing cache timestamp:', error);
+      }
+
       updateNearbyRoutes().then(() => {
         // Save to cache after successful update
         if (isBrowser) {
@@ -296,9 +274,18 @@ export default function NearbyPage() {
           }
         }
         setIsRefreshing(false);
+      }).catch((error) => {
+        console.error('[NearbyPage] Error during refresh:', error);
+        setIsRefreshing(false);
+
+        // Show error to user
+        setLocationError('Failed to refresh nearby routes. Please try again.');
+        setTimeout(() => {
+          setLocationError(null);
+        }, 3000);
       });
     }
-  }, [userLocation, updateNearbyRoutes]);
+  }, [userLocation, updateNearbyRoutes, isBrowser]);
 
   useEffect(() => {
     // Only run when we have location AND routes are loaded AND we haven't already processed routes
@@ -307,31 +294,39 @@ export default function NearbyPage() {
     // Check if we already have processed nearby routes to avoid infinite loop
     if (processedNearbyRoutes.length > 0 && !isRefreshing) return;
 
-    console.log('[NearbyPage] Effect triggered: updating nearby routes');
+    log.debug('[NearbyPage] Effect triggered: updating nearby routes');
 
     // If we're not refreshing and have cached data, use it temporarily
     if (!isRefreshing && cachedRoutes.length > 0) {
       // Use cached data temporarily while fetching fresh data
     }
 
-    updateNearbyRoutes().then(() => {
-      // Save to cache after successful update
-      if (isBrowser) {
-        try {
-          // Get fresh data from store after update
-          const freshProcessedRoutes = useRouteStore.getState().processedNearbyRoutes;
-          if (freshProcessedRoutes.length > 0) {
-            sessionStorage.setItem(CACHE_KEY, JSON.stringify(freshProcessedRoutes));
-            sessionStorage.setItem(CACHE_TIMESTAMP_KEY, Date.now().toString());
-            setLastRefreshTime(new Date().toLocaleTimeString());
+    // Add a small delay to prevent blocking the UI on mobile
+    const timer = setTimeout(() => {
+      updateNearbyRoutes().then(() => {
+        // Save to cache after successful update
+        if (isBrowser) {
+          try {
+            // Get fresh data from store after update
+            const freshProcessedRoutes = useRouteStore.getState().processedNearbyRoutes;
+            if (freshProcessedRoutes.length > 0) {
+              sessionStorage.setItem(CACHE_KEY, JSON.stringify(freshProcessedRoutes));
+              sessionStorage.setItem(CACHE_TIMESTAMP_KEY, Date.now().toString());
+              setLastRefreshTime(new Date().toLocaleTimeString());
+            }
+          } catch (error) {
+            console.error('Error saving to cache:', error);
           }
-        } catch (error) {
-          console.error('Error saving to cache:', error);
         }
-      }
-      setIsRefreshing(false);
-    });
-  }, [userLocation, loadingState, routes.length, processedNearbyRoutes.length, isRefreshing]); // Removed updateNearbyRoutes from deps - Zustand function is stable
+        setIsRefreshing(false);
+      }).catch((error) => {
+        console.error('[NearbyPage] Error updating nearby routes:', error);
+        setIsRefreshing(false);
+      });
+    }, 100); // Small delay to allow UI to update
+
+    return () => clearTimeout(timer);
+  }, [userLocation, loadingState, routes.length, processedNearbyRoutes.length, isRefreshing, isBrowser]); // Removed updateNearbyRoutes from deps - Zustand function is stable
 
   if (loadingState === 'loading') {
     return <FullPageLoader message={t('fetchingRouteData')} />;

@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { Route, RouteETA, StopDetail, StopETA, LoadingState, getStopLocation, getStopUniqueId } from '@/lib/types';
 import { fetchRoutes, findNearbyRoutes, searchRoutes, filterRoutesByCompany, calculateDistance } from '@/lib/services/github-data';
 import { fetchETAsForRoute, fetchETAsForStopOnRoute, fetchKMBETAForStop, filterETAsForRoute } from '@/lib/services/eta-service';
+import { log } from '@/lib/logger';
 
 interface ProcessedRoute {
   route: Route;
@@ -159,26 +160,26 @@ export const useRouteStore = create<RouteState>((set, get) => ({
     set({ isLoadingNearbyRoutes: true, processedNearbyRoutes: [] });
 
     try {
-      console.log(`[NearbyRoutes] Starting updateNearbyRoutes: ${routes.length} routes, range ${discoveryRange}m`);
+      log.debug(`[NearbyRoutes] Starting updateNearbyRoutes: ${routes.length} routes, range ${discoveryRange}m`);
       
       // Check if cancelled before starting
       if (abortController.signal.aborted) {
-        console.log('[NearbyRoutes] Update cancelled before start');
+        log.debug('[NearbyRoutes] Update cancelled before start');
         return;
       }
       
       const nearby = findNearbyRoutes(routes, userLocation.lat, userLocation.lng, discoveryRange);
-      console.log(`[NearbyRoutes] Found ${nearby.length} nearby routes`);
+      log.debug(`[NearbyRoutes] Found ${nearby.length} nearby routes`);
       set({ nearbyRoutes: nearby });
 
       if (nearby.length === 0) {
-        console.log('[NearbyRoutes] No nearby routes found, clearing loading');
+        log.debug('[NearbyRoutes] No nearby routes found, clearing loading');
         return;
       }
       
       // Check cancellation after finding routes
       if (abortController.signal.aborted) {
-        console.log('[NearbyRoutes] Update cancelled after finding routes');
+        log.debug('[NearbyRoutes] Update cancelled after finding routes');
         return;
       }
 
@@ -212,7 +213,7 @@ export const useRouteStore = create<RouteState>((set, get) => ({
         new Set(Array.from(routeToNearestStop.values()).map((v) => v.stop.id))
       );
 
-      console.log(`[NearbyRoutes] Fetching KMB ETAs for ${uniqueStopIds.length} unique stops (parallel)`);
+      log.debug(`[NearbyRoutes] Fetching KMB ETAs for ${uniqueStopIds.length} unique stops (parallel)`);
       
       // Fetch KMB ETAs in parallel for all unique stops (much faster than sequential)
       const kmbEtaCache = new Map<string, StopETA[]>();
@@ -226,7 +227,7 @@ export const useRouteStore = create<RouteState>((set, get) => ({
           return { stopId, stopETAs };
         } catch (error) {
           if (abortController.signal.aborted) {
-            console.log(`[NearbyRoutes] Fetch cancelled for stop ${stopId}`);
+            log.debug(`[NearbyRoutes] Fetch cancelled for stop ${stopId}`);
           } else {
             console.warn(`[NearbyRoutes] Failed to fetch ETAs for stop ${stopId}:`, error);
           }
@@ -238,7 +239,7 @@ export const useRouteStore = create<RouteState>((set, get) => ({
       
       // Check cancellation after batch fetch
       if (abortController.signal.aborted) {
-        console.log('[NearbyRoutes] Update cancelled after batch fetch');
+        log.debug('[NearbyRoutes] Update cancelled after batch fetch');
         return;
       }
       
@@ -267,7 +268,7 @@ export const useRouteStore = create<RouteState>((set, get) => ({
           return d1 - d2;
         });
       
-      console.log(`[NearbyRoutes] KMB ETA fetch complete, processing ${sortedRoutes.length} routes incrementally`);
+      log.debug(`[NearbyRoutes] KMB ETA fetch complete, processing ${sortedRoutes.length} routes incrementally`);
 
       // iOS-style incremental display: process routes one-by-one, append as each completes
       // Start with empty list - routes will appear incrementally
@@ -276,7 +277,7 @@ export const useRouteStore = create<RouteState>((set, get) => ({
       for (const route of sortedRoutes) {
         // Check cancellation before processing each route (iOS: if Task.isCancelled { break })
         if (abortController.signal.aborted) {
-          console.log(`[NearbyRoutes] Update cancelled, stopping at route ${route.routeNumber}`);
+          log.debug(`[NearbyRoutes] Update cancelled, stopping at route ${route.routeNumber}`);
           break;
         }
         
@@ -308,7 +309,7 @@ export const useRouteStore = create<RouteState>((set, get) => ({
               { route, nearestStop, etas: routeETAs, distance },
             ],
           });
-          console.log(`[NearbyRoutes] Added route ${route.routeNumber} with KMB ETAs (${current.length + 1} total)`);
+          log.debug(`[NearbyRoutes] Added route ${route.routeNumber} with KMB ETAs (${current.length + 1} total)`);
           // Small delay for smoother incremental display (like iOS 0.08s)
           await new Promise((resolve) => setTimeout(resolve, 80));
         }
@@ -323,7 +324,7 @@ export const useRouteStore = create<RouteState>((set, get) => ({
             .then((ctbETAs) => {
               // Check if still valid (not cancelled, route still exists)
               if (abortController.signal.aborted) {
-                console.log(`[NearbyRoutes] CTB fetch completed but update cancelled for ${route.routeNumber}`);
+                log.debug(`[NearbyRoutes] CTB fetch completed but update cancelled for ${route.routeNumber}`);
                 return;
               }
 
@@ -347,11 +348,11 @@ export const useRouteStore = create<RouteState>((set, get) => ({
                 etas: allETAs,
               };
               set({ processedNearbyRoutes: updated });
-              console.log(`[NearbyRoutes] Updated route ${route.routeNumber} with CTB ETAs`);
+              log.debug(`[NearbyRoutes] Updated route ${route.routeNumber} with CTB ETAs`);
             })
             .catch((e) => {
               if (abortController.signal.aborted) {
-                console.log(`[NearbyRoutes] CTB fetch cancelled for ${route.routeNumber}`);
+                log.debug(`[NearbyRoutes] CTB fetch cancelled for ${route.routeNumber}`);
               } else {
                 console.warn(`[NearbyRoutes] CTB ETAs for ${route.routeNumber}:`, e);
               }
@@ -361,11 +362,11 @@ export const useRouteStore = create<RouteState>((set, get) => ({
       
       // Only log if not cancelled
       if (!abortController.signal.aborted) {
-        console.log(`[NearbyRoutes] Finished processing: ${get().processedNearbyRoutes.length} routes with valid ETAs`);
+        log.debug(`[NearbyRoutes] Finished processing: ${get().processedNearbyRoutes.length} routes with valid ETAs`);
       }
     } catch (error) {
       if (abortController.signal.aborted) {
-        console.log('[NearbyRoutes] Update was cancelled');
+        log.debug('[NearbyRoutes] Update was cancelled');
       } else {
         console.error('[NearbyRoutes] Error updating nearby routes:', error);
         set({ processedNearbyRoutes: [] });
@@ -376,7 +377,7 @@ export const useRouteStore = create<RouteState>((set, get) => ({
       if (currentController === abortController) {
         set({ _nearbyUpdateAbortController: null });
       }
-      console.log('[NearbyRoutes] Clearing loading state');
+      log.debug('[NearbyRoutes] Clearing loading state');
       set({ isLoadingNearbyRoutes: false });
     }
   },
