@@ -25,11 +25,12 @@ export default function NearbyPage() {
     processedNearbyRoutes,
     isLoadingNearbyRoutes,
     loadingState,
+    routes,
     userLocation,
     setUserLocation,
     updateNearbyRoutes,
   } = useRouteStore();
-  const discoveryRange = useSettingsStore(state => state.discoveryRange);
+  const discoveryRange = useSettingsStore((state) => state.discoveryRange);
 
   const [locationError, setLocationError] = useState<string | null>(null);
   const [isRequestingLocation, setIsRequestingLocation] = useState(false);
@@ -82,8 +83,9 @@ export default function NearbyPage() {
   }, [requestLocation]);
 
   useEffect(() => {
-    if (userLocation) updateNearbyRoutes();
-  }, [userLocation, discoveryRange, updateNearbyRoutes]);
+    if (!userLocation) return;
+    updateNearbyRoutes();
+  }, [userLocation, discoveryRange, updateNearbyRoutes, loadingState, routes.length]);
 
   if (loadingState === 'loading') {
     return <FullPageLoader message={t('fetchingRouteData')} />;

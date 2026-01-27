@@ -128,32 +128,38 @@ export const useRouteStore = create<RouteState>((set, get) => ({
   
   // Update nearby routes based on current location - iOS-style processing
   updateNearbyRoutes: async () => {
-    const { routes, userLocation, discoveryRange } = get();
+    const { routes, userLocation } = get();
     if (!userLocation || routes.length === 0) {
-      set({ nearbyRoutes: [], processedNearbyRoutes: [] });
+      set({ nearbyRoutes: [], processedNearbyRoutes: [], isLoadingNearbyRoutes: false });
       return;
     }
-    
-    set({ isLoadingNearbyRoutes: true, processedNearbyRoutes: [] });
-    
+
+    // Use discovery range from settings store (source of truth for UI)
+    let discoveryRange = get().discoveryRange;
     try {
-      // STEP 1: Find nearby routes
+      const settings = (await import('./settings-store')).useSettingsStore.getState();
+      discoveryRange = settings.discoveryRange;
+    } catch {
+      /* use route store default */
+    }
+
+    set({ isLoadingNearbyRoutes: true, processedNearbyRoutes: [] });
+
+    try {
       const nearby = findNearbyRoutes(routes, userLocation.lat, userLocation.lng, discoveryRange);
       set({ nearbyRoutes: nearby });
-      
+
       if (nearby.length === 0) {
-        set({ isLoadingNearbyRoutes: false });
         return;
       }
-      
-      // STEP 2: Find nearest stop for each route and calculate distances
+
       const routeToNearestStop = new Map<string, { stop: StopDetail; distance: number }>();
       const routeDistances = new Map<string, number>();
-      
+
       for (const route of nearby) {
         let nearestStop: StopDetail | null = null;
         let minDistance = Infinity;
-        
+
         for (const stop of route.stops) {
           const stopLoc = getStopLocation(stop);
           const distance = calculateDistance(
@@ -162,120 +168,91 @@ export const useRouteStore = create<RouteState>((set, get) => ({
             stopLoc.lat,
             stopLoc.lng
           );
-          
           if (distance <= discoveryRange && distance < minDistance) {
             minDistance = distance;
             nearestStop = stop;
           }
         }
-        
         if (nearestStop) {
           routeToNearestStop.set(route.id, { stop: nearestStop, distance: minDistance });
           routeDistances.set(route.id, minDistance);
         }
       }
-      
-      // STEP 3: Get all unique nearby stop IDs
-      const uniqueStopIds = Array.from(new Set(
-        Array.from(routeToNearestStop.values()).map(v => v.stop.id)
-      ));
-      
-      // STEP 4: Fetch KMB ETAs for all stops (efficient batch) - iOS approach
+
+      const uniqueStopIds = Array.from(
+        new Set(Array.from(routeToNearestStop.values()).map((v) => v.stop.id))
+      );
+
       const kmbEtaCache = new Map<string, StopETA[]>();
-      
       for (const stopId of uniqueStopIds) {
-        try {
-          const stopETAs = await fetchKMBETAForStop(stopId);
-          kmbEtaCache.set(stopId, stopETAs);
-        } catch (error) {
-          console.error(`Error fetching KMB ETAs for stop ${stopId}:`, error);
-        }
+        const stopETAs = await fetchKMBETAForStop(stopId);
+        kmbEtaCache.set(stopId, stopETAs);
       }
-      
-      // STEP 5: Process routes in sorted order (favorites first, then by distance)
-      // Access favorites store directly (Zustand stores can be accessed from anywhere)
-      let favoritesStore: any = null;
+
+      let favoritesStore: { isFavorite: (r: Route) => boolean } | null = null;
       try {
-        const favoritesModule = await import('./favorites-store');
-        favoritesStore = favoritesModule.useFavoritesStore.getState();
-      } catch (e) {
-        // Favorites store not available, skip favorite sorting
+        const mod = await import('./favorites-store');
+        favoritesStore = mod.useFavoritesStore.getState();
+      } catch {
+        /* skip */
       }
-      
+
       const sortedRoutes = nearby
-        .filter(r => routeToNearestStop.has(r.id))
+        .filter((r) => routeToNearestStop.has(r.id))
         .sort((r1, r2) => {
-          // First priority: favorites
           if (favoritesStore) {
-            const r1IsFavorite = favoritesStore.isFavorite(r1);
-            const r2IsFavorite = favoritesStore.isFavorite(r2);
-            if (r1IsFavorite !== r2IsFavorite) {
-              return r1IsFavorite ? -1 : 1;
-            }
+            const f1 = favoritesStore.isFavorite(r1);
+            const f2 = favoritesStore.isFavorite(r2);
+            if (f1 !== f2) return f1 ? -1 : 1;
           }
-          
-          // Second priority: distance
           const d1 = routeDistances.get(r1.id) ?? Infinity;
           const d2 = routeDistances.get(r2.id) ?? Infinity;
           return d1 - d2;
         });
-      
+
       const processedRoutes: ProcessedRoute[] = [];
-      
+
       for (const route of sortedRoutes) {
-        const nearestStopInfo = routeToNearestStop.get(route.id);
-        if (!nearestStopInfo) continue;
-        
-        const { stop: nearestStop, distance } = nearestStopInfo;
-        
-        // Get KMB ETAs from cache and filter for this route
+        const info = routeToNearestStop.get(route.id);
+        if (!info) continue;
+        const { stop: nearestStop, distance } = info;
+
         let routeETAs: RouteETA[] = [];
-        const kmbETAs = kmbEtaCache.get(nearestStop.id) || [];
-        const filteredKMBETAs = filterETAsForRoute(route, kmbETAs);
-        routeETAs.push(...filteredKMBETAs.map(eta => ({
-          ...eta,
-          seq: nearestStop.sequence,
-        })));
-        
-        // For CTB and JOINT routes, fetch CTB ETAs for this specific route-stop combo
+        const kmbETAs = kmbEtaCache.get(nearestStop.id) ?? [];
+        const filtered = filterETAsForRoute(route, kmbETAs);
+        routeETAs.push(
+          ...filtered.map((eta) => ({ ...eta, seq: nearestStop.sequence }))
+        );
+
         if (route.company === 'CTB' || route.company === 'Both') {
           try {
-            const ctbStopId = nearestStop.ctbStopId || nearestStop.id;
-            // Use the route-specific endpoint for CTB
+            const ctbStopId = nearestStop.ctbStopId ?? nearestStop.id;
             const ctbETAs = await fetchETAsForStopOnRoute(route, {
               ...nearestStop,
               id: ctbStopId,
             });
             routeETAs.push(...ctbETAs);
-          } catch (error) {
-            console.error(`Error fetching CTB ETAs for route ${route.routeNumber}:`, error);
+          } catch (e) {
+            console.warn(`CTB ETAs for ${route.routeNumber}:`, e);
           }
         }
-        
-        // Sort ETAs by time
+
         routeETAs.sort((a, b) => {
           if (!a.eta) return 1;
           if (!b.eta) return -1;
           return new Date(a.eta).getTime() - new Date(b.eta).getTime();
         });
-        
-        // Only add route if it has valid ETAs (iOS logic: if !routeETAs.isEmpty)
+
         if (routeETAs.length > 0) {
-          processedRoutes.push({
-            route,
-            nearestStop,
-            etas: routeETAs,
-            distance,
-          });
+          processedRoutes.push({ route, nearestStop, etas: routeETAs, distance });
         }
       }
-      
-      set({ 
-        processedNearbyRoutes: processedRoutes,
-        isLoadingNearbyRoutes: false 
-      });
+
+      set({ processedNearbyRoutes: processedRoutes });
     } catch (error) {
       console.error('Error updating nearby routes:', error);
+      set({ processedNearbyRoutes: [] });
+    } finally {
       set({ isLoadingNearbyRoutes: false });
     }
   },

@@ -49,37 +49,51 @@ async function fetchKMBETAForStopAndRoute(
   }
 }
 
+const FETCH_TIMEOUT_MS = 12_000;
+
+/**
+ * Fetch with timeout to avoid hanging indefinitely.
+ */
+async function fetchWithTimeout(url: string): Promise<Response> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  try {
+    const res = await fetch(url, { signal: controller.signal });
+    return res;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 /**
  * Fetch KMB ETAs for a stop (all routes) - efficient endpoint
  */
 async function fetchKMBETAForStop(stopId: string): Promise<StopETA[]> {
-  // Check cache
   const cacheKey = `kmb-stop-${stopId}`;
   const cached = etaCache.get(cacheKey);
   if (cached && Date.now() - cached.timestamp < CACHE_LIFETIME_MS) {
     return cached.etas;
   }
-  
+
   try {
     const url = `${KMB_API_BASE}/stop-eta/${stopId}`;
-    const response = await fetch(url);
+    const response = await fetchWithTimeout(url);
     if (!response.ok) {
-      console.error(`KMB stop API error: ${response.status}`);
+      console.warn(`KMB stop API error: ${response.status} for stop ${stopId}`);
       return [];
     }
-    
+
     const data = await response.json();
-    const etas = data.data || [];
-    
-    // Cache the results
-    etaCache.set(cacheKey, {
-      timestamp: Date.now(),
-      etas,
-    });
-    
+    const etas = data.data ?? [];
+
+    etaCache.set(cacheKey, { timestamp: Date.now(), etas });
     return etas;
   } catch (error) {
-    console.error('Error fetching KMB stop ETAs:', error);
+    if ((error as Error)?.name === 'AbortError') {
+      console.warn(`KMB stop-eta timeout for stop ${stopId}`);
+    } else {
+      console.error('Error fetching KMB stop ETAs:', error);
+    }
     return [];
   }
 }

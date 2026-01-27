@@ -23,6 +23,9 @@ export const translations = {
     noNearbyRoutes: 'No nearby routes found.',
     searchRoute: 'Search route',
     kmbRoutes: 'KMB Routes',
+    recentSearches: 'Recent',
+    allBuses: 'Buses',
+    noRoutesFor: 'No routes found for "%s"',
     
     // ETA display
     arriving: 'Arriving',
@@ -111,6 +114,9 @@ export const translations = {
     noNearbyRoutes: '搵唔到附近嘅巴士路線喎。',
     searchRoute: '搵巴士',
     kmbRoutes: '九巴路線',
+    recentSearches: '最近搜尋',
+    allBuses: '巴士',
+    noRoutesFor: '搵唔到「%s」嘅路線',
     
     // ETA display
     arriving: '就嚟到喇',
