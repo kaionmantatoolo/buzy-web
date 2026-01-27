@@ -35,6 +35,50 @@ export default function NearbyPage() {
   const [locationError, setLocationError] = useState<string | null>(null);
   const [isRequestingLocation, setIsRequestingLocation] = useState(false);
   const [permissionDenied, setPermissionDenied] = useState(false);
+  const [permissionStatus, setPermissionStatus] = useState<'prompt' | 'granted' | 'denied' | 'checking'>('checking');
+
+  // Check permission status without requesting (Safari-safe)
+  useEffect(() => {
+    if (!('geolocation' in navigator)) {
+      setPermissionStatus('denied');
+      return;
+    }
+
+    // Use Permissions API if available (Chrome, Firefox, but not Safari)
+    if ('permissions' in navigator) {
+      navigator.permissions.query({ name: 'geolocation' as PermissionName }).then((result) => {
+        setPermissionStatus(result.state as 'granted' | 'denied' | 'prompt');
+        
+        // If already granted, try to get location silently (Safari allows this)
+        if (result.state === 'granted' && !userLocation) {
+          navigator.geolocation.getCurrentPosition(
+            (position) => {
+              setUserLocation({
+                lat: position.coords.latitude,
+                lng: position.coords.longitude,
+              });
+            },
+            (error) => {
+              // Silent fail - user will need to click button
+              console.log('Silent location fetch failed:', error);
+            },
+            { enableHighAccuracy: true, timeout: 5000, maximumAge: 60000 }
+          );
+        }
+        
+        // Listen for permission changes
+        result.onchange = () => {
+          setPermissionStatus(result.state as 'granted' | 'denied' | 'prompt');
+        };
+      }).catch(() => {
+        // Permissions API not supported, default to prompt
+        setPermissionStatus('prompt');
+      });
+    } else {
+      // Permissions API not available (Safari), default to prompt
+      setPermissionStatus('prompt');
+    }
+  }, [userLocation, setUserLocation]);
 
   const requestLocation = useCallback(() => {
     if (!('geolocation' in navigator)) {
@@ -44,6 +88,7 @@ export default function NearbyPage() {
 
     setIsRequestingLocation(true);
     setLocationError(null);
+    setPermissionDenied(false);
 
     navigator.geolocation.getCurrentPosition(
       (position) => {
@@ -53,6 +98,7 @@ export default function NearbyPage() {
         });
         setIsRequestingLocation(false);
         setPermissionDenied(false);
+        setPermissionStatus('granted');
       },
       (error) => {
         console.error('Geolocation error:', error);
@@ -60,6 +106,7 @@ export default function NearbyPage() {
 
         if (error.code === error.PERMISSION_DENIED) {
           setPermissionDenied(true);
+          setPermissionStatus('denied');
           setLocationError('Location permission denied. Please enable it in your browser settings.');
         } else if (error.code === error.POSITION_UNAVAILABLE) {
           setLocationError('Location unavailable. Please try again.');
@@ -76,11 +123,6 @@ export default function NearbyPage() {
       }
     );
   }, [setUserLocation]);
-
-  useEffect(() => {
-    const timer = setTimeout(() => requestLocation(), 500);
-    return () => clearTimeout(timer);
-  }, [requestLocation]);
 
   useEffect(() => {
     // Only run when we have location AND routes are loaded
@@ -143,8 +185,8 @@ export default function NearbyPage() {
           </Box>
         )}
 
-        {/* No location yet */}
-        {!userLocation && !isRequestingLocation && !locationError && (
+        {/* No location yet - show button for Safari compatibility */}
+        {!userLocation && !isRequestingLocation && !locationError && permissionStatus !== 'checking' && (
           <Box
             sx={{
               textAlign: 'center',
@@ -160,15 +202,22 @@ export default function NearbyPage() {
               {t('locationNeeded')}
             </Typography>
             <Typography variant="bodyMedium" color="text.secondary" sx={{ mb: 3 }}>
-              Enable location to find nearby bus stops
+              {permissionStatus === 'denied' 
+                ? 'Location permission was denied. Please click the button below to request access again, or enable it in your browser settings.'
+                : 'Enable location to find nearby bus stops. Safari requires you to click the button below.'}
             </Typography>
+            {permissionStatus === 'denied' && (
+              <Typography variant="bodySmall" color="text.secondary" sx={{ mb: 2 }}>
+                iOS Safari: Settings → Safari → Location Services → Allow
+              </Typography>
+            )}
             <Button
               variant="contained"
               onClick={requestLocation}
               startIcon={<LocationOnIcon />}
               sx={{ borderRadius: '20px' }}
             >
-              Enable Location
+              {permissionStatus === 'denied' ? 'Request Location Access' : 'Enable Location'}
             </Button>
           </Box>
         )}
