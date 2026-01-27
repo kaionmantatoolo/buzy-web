@@ -166,9 +166,15 @@ export default function NearbyPage() {
       return;
     }
 
+    console.log('[Location] Requesting location with user gesture');
     setIsRequestingLocation(true);
     setLocationError(null);
     setPermissionDenied(false);
+
+    // Check if we're on HTTPS (required for Safari)
+    if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
+      console.warn('[Location] Not on HTTPS - Safari may block location requests');
+    }
 
     navigator.geolocation.getCurrentPosition(
       (position) => {
@@ -181,19 +187,25 @@ export default function NearbyPage() {
         setPermissionStatus('granted');
       },
       (error) => {
-        console.error('Geolocation error:', error);
+        console.error('[Location] Geolocation error:', error);
+        console.error('[Location] Error code:', error.code);
+        console.error('[Location] Error message:', error.message);
         setIsRequestingLocation(false);
 
         if (error.code === error.PERMISSION_DENIED) {
           setPermissionDenied(true);
           setPermissionStatus('denied');
-          setLocationError('Location permission denied. Please enable it in your browser settings.');
+          const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+          const instructions = isSafari
+            ? 'In Safari: Tap the address bar → tap the location icon → set to "Allow". Or go to Settings → Safari → Location Services → Allow.'
+            : 'Please enable location permission in your browser settings.';
+          setLocationError(`Location permission denied. ${instructions}`);
         } else if (error.code === error.POSITION_UNAVAILABLE) {
-          setLocationError('Location unavailable. Please try again.');
+          setLocationError('Location unavailable. Please ensure location services are enabled on your device.');
         } else if (error.code === error.TIMEOUT) {
           setLocationError('Location request timed out. Please try again.');
         } else {
-          setLocationError(error.message);
+          setLocationError(`Location error: ${error.message || 'Unknown error'}`);
         }
       },
       {
