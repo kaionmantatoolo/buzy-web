@@ -125,7 +125,7 @@ export function RouteMap({
                 position: absolute;
                 width: 32px;
                 height: 32px;
-                background: rgba(59, 130, 246, 0.3);
+                background: rgba(0, 122, 255, 0.3);
                 border-radius: 50%;
                 animation: pulse 2s infinite;
                 top: -8px;
@@ -134,7 +134,7 @@ export function RouteMap({
               <div style="
                 width: 16px;
                 height: 16px;
-                background: #3b82f6;
+                background: #007AFF;
                 border: 2px solid white;
                 border-radius: 50%;
                 box-shadow: 0 2px 4px rgba(0,0,0,0.3);
@@ -174,7 +174,7 @@ export function RouteMap({
     });
     
     polylineRef.current = L.polyline(coordinates, {
-      color: '#1565C0',
+      color: '#007AFF',
       weight: 4,
       opacity: 0.7,
       lineJoin: 'round',
@@ -223,8 +223,8 @@ export function RouteMap({
       let textColor = '#374151';
       
       if (isSelected) {
-        bgColor = '#1565C0';
-        borderColor = '#1565C0';
+        bgColor = '#007AFF';
+        borderColor = '#007AFF';
         textColor = '#ffffff';
       } else if (isFirst || isLast) {
         bgColor = '#f97316';

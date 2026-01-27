@@ -41,8 +41,9 @@ export function StopRow({
 
   const stopName = getStopName(stop, locale, useCTBInfo);
 
-  // Get the next ETA for preview
-  const nextETA = etas.length > 0 ? etas[0] : null;
+  // Get the next valid ETA for preview (filter null/invalid)
+  const validETAs = etas.filter((e): e is RouteETA & { eta: string } => e.eta != null && e.eta !== '');
+  const nextETA = validETAs.length > 0 ? validETAs[0] : null;
   const nextETAMinutes = nextETA?.eta
     ? Math.max(0, Math.floor((new Date(nextETA.eta).getTime() - Date.now()) / 60000))
     : null;
@@ -171,12 +172,12 @@ export function StopRow({
       {/* Expanded ETA details */}
       <Collapse in={isExpanded}>
         <Box sx={{ pl: 7, pr: 2, pb: 2 }}>
-          <ETAList etas={etas} maxItems={3} />
+          <ETAList etas={validETAs} maxItems={3} />
 
           {/* Company badges if multiple */}
-          {etas.length > 0 && (
+          {validETAs.length > 0 && (
             <Stack direction="row" spacing={0.5} sx={{ mt: 1 }}>
-              {Array.from(new Set(etas.map(e => e.co))).map(co => (
+              {Array.from(new Set(validETAs.map(e => e.co))).map(co => (
                 <CompanyBadge
                   key={co}
                   company={co as 'KMB' | 'CTB' | 'Both'}

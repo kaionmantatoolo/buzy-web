@@ -6,13 +6,15 @@ import {
   Typography,
   Button,
   Alert,
-  Stack,
   CircularProgress,
+  Divider,
+  alpha,
 } from '@mui/material';
 import LocationOnIcon from '@mui/icons-material/LocationOn';
 import MapIcon from '@mui/icons-material/Map';
+import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import { PageHeader } from '@/components/layout';
-import { RouteCard, RouteCardSkeleton } from '@/components/route';
+import { NearbyRouteRow, NearbyRouteRowSkeleton } from '@/components/route';
 import { FullPageLoader } from '@/components/ui';
 import { useRouteStore, useSettingsStore } from '@/lib/stores';
 import { useTranslation } from '@/lib/i18n';
@@ -32,7 +34,6 @@ export default function NearbyPage() {
   const [isRequestingLocation, setIsRequestingLocation] = useState(false);
   const [permissionDenied, setPermissionDenied] = useState(false);
 
-  // Request location permission
   const requestLocation = useCallback(() => {
     if (!('geolocation' in navigator)) {
       setLocationError('Geolocation is not supported by your browser');
@@ -54,7 +55,7 @@ export default function NearbyPage() {
       (error) => {
         console.error('Geolocation error:', error);
         setIsRequestingLocation(false);
-        
+
         if (error.code === error.PERMISSION_DENIED) {
           setPermissionDenied(true);
           setLocationError('Location permission denied. Please enable it in your browser settings.');
@@ -74,45 +75,44 @@ export default function NearbyPage() {
     );
   }, [setUserLocation]);
 
-  // Request location on mount - with a small delay to ensure page is loaded
   useEffect(() => {
-    const timer = setTimeout(() => {
-      requestLocation();
-    }, 500);
-
+    const timer = setTimeout(() => requestLocation(), 500);
     return () => clearTimeout(timer);
   }, [requestLocation]);
 
-  // Update nearby routes when location or range changes
   useEffect(() => {
-    if (userLocation) {
-      updateNearbyRoutes();
-    }
+    if (userLocation) updateNearbyRoutes();
   }, [userLocation, discoveryRange, updateNearbyRoutes]);
 
-  // Show loading while fetching initial data
   if (loadingState === 'loading') {
     return <FullPageLoader message={t('fetchingRouteData')} />;
   }
 
   return (
-    <Box sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
       <PageHeader title={t('nearbyRoutes')} />
 
-      <Box sx={{ p: 2, flex: 1 }}>
+      <Box sx={{ flex: 1, overflow: 'auto', px: 0 }}>
         {/* Location request in progress */}
         {isRequestingLocation && (
-          <Box sx={{ textAlign: 'center', py: 8, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+          <Box
+            sx={{
+              textAlign: 'center',
+              py: 8,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: 2,
+            }}
+          >
             <CircularProgress size={32} />
-            <Typography color="text.secondary">
-              {t('findingNearbyRoutes')}
-            </Typography>
+            <Typography color="text.secondary">{t('findingNearbyRoutes')}</Typography>
           </Box>
         )}
 
         {/* Location error or permission denied */}
         {locationError && !isRequestingLocation && (
-          <Box sx={{ py: 4 }}>
+          <Box sx={{ p: 2 }}>
             <Alert
               severity={permissionDenied ? 'info' : 'warning'}
               sx={{ mb: 2 }}
@@ -138,10 +138,19 @@ export default function NearbyPage() {
           </Box>
         )}
 
-        {/* No location yet and not requesting */}
+        {/* No location yet */}
         {!userLocation && !isRequestingLocation && !locationError && (
-          <Box sx={{ textAlign: 'center', py: 8 }}>
-            <LocationOnIcon sx={{ fontSize: 64, color: 'primary.main', mb: 2 }} />
+          <Box
+            sx={{
+              textAlign: 'center',
+              py: 10,
+              px: 3,
+              borderRadius: 3,
+              mx: 2,
+              bgcolor: (theme) => alpha(theme.palette.primary.main, 0.08),
+            }}
+          >
+            <LocationOnIcon sx={{ fontSize: 56, color: 'primary.main', mb: 2 }} />
             <Typography variant="titleMedium" gutterBottom>
               {t('locationNeeded')}
             </Typography>
@@ -152,52 +161,76 @@ export default function NearbyPage() {
               variant="contained"
               onClick={requestLocation}
               startIcon={<LocationOnIcon />}
+              sx={{ borderRadius: '20px' }}
             >
               Enable Location
             </Button>
           </Box>
         )}
 
-        {/* Discovery range indicator */}
+        {/* Discovery range banner - M3 expressive tonal bar */}
         {userLocation && !isRequestingLocation && (
-          <Typography
-            variant="bodySmall"
-            color="text.secondary"
-            sx={{ textAlign: 'center', mb: 2 }}
+          <Box
+            sx={{
+              mx: 2,
+              mt: 1,
+              mb: 0.5,
+              py: 1,
+              px: 2,
+              borderRadius: 2,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1,
+              bgcolor: (theme) => alpha(theme.palette.primary.main, 0.08),
+            }}
           >
-            {t('showingRoutesWithin', discoveryRange)}
-          </Typography>
+            <InfoOutlinedIcon sx={{ fontSize: 18, color: 'primary.main' }} />
+            <Typography variant="bodySmall" color="text.secondary">
+              {t('showingRoutesWithin', discoveryRange)}
+            </Typography>
+          </Box>
         )}
 
-        {/* Route list */}
+        {/* Route list - iOS-style */}
         {userLocation && !isRequestingLocation && (
-          <>
+          <Box
+            sx={{
+              bgcolor: 'background.paper',
+              borderRadius: { xs: 0, sm: 2 },
+              overflow: 'hidden',
+              mx: { xs: 0, sm: 2 },
+              mb: 2,
+              boxShadow: (theme) =>
+                theme.palette.mode === 'light'
+                  ? '0 1px 3px rgba(0,0,0,0.06)'
+                  : '0 1px 3px rgba(0,0,0,0.2)',
+            }}
+          >
             {nearbyRoutes.length > 0 ? (
-              <Stack spacing={0}>
-                {nearbyRoutes.map(route => (
-                  <RouteCard
-                    key={route.id}
-                    route={route}
-                    showDistance
-                  />
+              <>
+                {nearbyRoutes.map((route, index) => (
+                  <Box key={route.id}>
+                    {index > 0 && <Divider sx={{ mx: 2 }} />}
+                    <NearbyRouteRow route={route} />
+                  </Box>
                 ))}
-              </Stack>
+              </>
             ) : loadingState === 'success' ? (
-              <Box sx={{ textAlign: 'center', py: 8 }}>
-                <MapIcon sx={{ fontSize: 64, color: 'text.disabled', mb: 2 }} />
-                <Typography color="text.secondary">
-                  {t('noNearbyRoutes')}
-                </Typography>
+              <Box sx={{ textAlign: 'center', py: 10, px: 2 }}>
+                <MapIcon sx={{ fontSize: 56, color: 'text.disabled', mb: 2 }} />
+                <Typography color="text.secondary">{t('noNearbyRoutes')}</Typography>
               </Box>
             ) : (
-              // Loading skeletons
-              <Stack spacing={0}>
+              <>
                 {[...Array(5)].map((_, i) => (
-                  <RouteCardSkeleton key={i} />
+                  <Box key={i}>
+                    {i > 0 && <Divider sx={{ mx: 2 }} />}
+                    <NearbyRouteRowSkeleton />
+                  </Box>
                 ))}
-              </Stack>
+              </>
             )}
-          </>
+          </Box>
         )}
       </Box>
     </Box>

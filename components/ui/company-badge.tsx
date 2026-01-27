@@ -1,6 +1,7 @@
 'use client';
 
-import { Chip } from '@mui/material';
+import { useTheme, alpha } from '@mui/material/styles';
+import { Box, Typography } from '@mui/material';
 import { BusCompany } from '@/lib/types';
 import { m3Tokens } from '@/lib/theme';
 
@@ -10,34 +11,47 @@ interface CompanyBadgeProps {
 }
 
 export function CompanyBadge({ company, size = 'small' }: CompanyBadgeProps) {
+  const theme = useTheme();
+  const isDark = theme.palette.mode === 'dark';
+  const tokens = isDark ? m3Tokens.dark : m3Tokens.light;
+
   const getColors = () => {
     switch (company) {
       case 'KMB':
-        return { bg: m3Tokens.light.kmb, text: '#FFFFFF' };
+        return { color: tokens.kmb };
       case 'CTB':
-        return { bg: m3Tokens.light.ctb, text: '#FFFFFF' };
+        return { color: tokens.ctb };
       case 'Both':
-        return { bg: m3Tokens.light.joint, text: '#FFFFFF' };
+        return { color: tokens.joint };
     }
   };
 
-  const colors = getColors();
+  const { color } = getColors();
   const label = company === 'Both' ? 'Joint' : company;
+  const fontSize = size === 'small' ? '0.75rem' : '0.8125rem';
 
+  // iOS RouteBadgeLabel: background color.opacity(0.2), foreground color
   return (
-    <Chip
-      label={label}
-      size={size}
+    <Box
       sx={{
-        bgcolor: colors.bg,
-        color: colors.text,
-        fontWeight: 600,
-        fontSize: size === 'small' ? '0.6875rem' : '0.75rem',
-        height: size === 'small' ? 20 : 24,
-        '& .MuiChip-label': {
-          px: 1,
-        },
+        px: 0.5,
+        py: 0.25,
+        borderRadius: 1,
+        bgcolor: alpha(color, 0.2),
+        display: 'inline-flex',
+        alignItems: 'center',
       }}
-    />
+    >
+      <Typography
+        component="span"
+        sx={{
+          fontSize,
+          fontWeight: 500,
+          color,
+        }}
+      >
+        {label}
+      </Typography>
+    </Box>
   );
 }

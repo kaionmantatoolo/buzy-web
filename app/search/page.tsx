@@ -112,11 +112,27 @@ export default function SearchPage() {
   }, []);
 
   return (
-    <Box sx={{ height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+    <Box
+      sx={{
+        flex: 1,
+        minHeight: 0,
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden',
+      }}
+    >
       <PageHeader title={t('search')} />
 
-      {/* Results area - scrollable */}
-      <Box sx={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
+      {/* Results area - only this scrolls */}
+      <Box
+        sx={{
+          flex: 1,
+          minHeight: 0,
+          overflowY: 'auto',
+          overflowX: 'hidden',
+          WebkitOverflowScrolling: 'touch',
+        }}
+      >
         {searchText ? (
           filteredRoutes.length > 0 ? (
             <List disablePadding>
@@ -146,14 +162,16 @@ export default function SearchPage() {
         )}
       </Box>
 
-      {/* Fixed bottom section - Search bar and keypad */}
-      <Box sx={{ 
-        flexShrink: 0,
-        bgcolor: 'background.paper', 
-        borderTop: 1, 
-        borderColor: 'divider',
-        pb: 'env(safe-area-inset-bottom)',
-      }}>
+      {/* Fixed bottom section - Search bar and keypad (never scrolls) */}
+      <Box
+        sx={{
+          flexShrink: 0,
+          bgcolor: 'background.paper',
+          borderTop: 1,
+          borderColor: 'divider',
+          pb: 'env(safe-area-inset-bottom)',
+        }}
+      >
         {/* Search bar */}
         <Box sx={{ px: 2, pt: 2, pb: 1 }}>
           <Paper

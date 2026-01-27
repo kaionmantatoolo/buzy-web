@@ -58,10 +58,17 @@ interface ETAListProps {
   maxItems?: number;
 }
 
+// Filter out ETAs with no valid eta time (null) so we don't show "N/A" slots
+function filterValidETAs(etas: RouteETA[]): RouteETA[] {
+  return etas.filter((e): e is RouteETA & { eta: string } => e.eta != null && e.eta !== '');
+}
+
 export function ETAList({ etas, maxItems = 3 }: ETAListProps) {
   const { t } = useTranslation();
 
-  if (etas.length === 0) {
+  const validETAs = filterValidETAs(etas);
+
+  if (validETAs.length === 0) {
     return (
       <Typography variant="bodySmall" color="text.secondary">
         {t('noBusesArrivingSoon')}
@@ -69,7 +76,7 @@ export function ETAList({ etas, maxItems = 3 }: ETAListProps) {
     );
   }
 
-  const displayETAs = etas.slice(0, maxItems);
+  const displayETAs = validETAs.slice(0, maxItems);
 
   return (
     <Stack spacing={0.5}>

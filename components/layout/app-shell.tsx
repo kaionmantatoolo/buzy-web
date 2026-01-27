@@ -11,6 +11,7 @@ interface AppShellProps {
 export function AppShell({ children }: AppShellProps) {
   const pathname = usePathname();
   const isRouteDetail = pathname.startsWith('/route/');
+  const isSearchPage = pathname === '/search';
 
   return (
     <Box
@@ -28,6 +29,8 @@ export function AppShell({ children }: AppShellProps) {
           flex: 1,
           display: 'flex',
           flexDirection: 'column',
+          minHeight: 0,
+          overflow: isSearchPage ? 'hidden' : undefined,
           pb: isRouteDetail ? 0 : '80px', // Space for bottom nav
         }}
       >

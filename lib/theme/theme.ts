@@ -2,18 +2,18 @@
 
 import { createTheme, ThemeOptions } from '@mui/material/styles';
 
-// Material 3 color tokens for Buzy
-// Using a blue primary with orange accents (matching KMB/CTB colors)
+// Material 3 + iOS Buzy color tokens
+// iOS: route # blue, KMB red, CTB yellow, Joint green; system backgrounds
 const m3Tokens = {
   light: {
-    primary: '#1565C0',           // Blue 800
+    primary: '#007AFF',           // iOS blue
     onPrimary: '#FFFFFF',
     primaryContainer: '#D1E4FF',
     onPrimaryContainer: '#001D36',
     
     secondary: '#535F70',
     onSecondary: '#FFFFFF',
-    secondaryContainer: '#D7E3F7',
+    secondaryContainer: '#E5E5EA',
     onSecondaryContainer: '#101C2B',
     
     tertiary: '#6B5778',
@@ -26,30 +26,30 @@ const m3Tokens = {
     errorContainer: '#FFDAD6',
     onErrorContainer: '#410002',
     
-    background: '#F8F9FF',
-    onBackground: '#191C20',
-    surface: '#F8F9FF',
-    onSurface: '#191C20',
+    background: '#F2F2F7',        // iOS secondarySystemBackground
+    onBackground: '#000000',
+    surface: '#FFFFFF',           // iOS systemBackground
+    onSurface: '#000000',
     
-    surfaceVariant: '#DFE2EB',
-    onSurfaceVariant: '#43474E',
-    outline: '#73777F',
-    outlineVariant: '#C3C6CF',
+    surfaceVariant: '#E5E5EA',    // iOS systemGray5
+    onSurfaceVariant: '#8E8E93',
+    outline: '#C7C7CC',
+    outlineVariant: '#E5E5EA',
     
-    // Custom brand colors
+    // iOS app brand colors (RouteBadge)
     kmb: '#E60012',
     ctb: '#F7941D',
-    joint: '#7C3AED',
+    joint: '#34C759',             // iOS green
   },
   dark: {
-    primary: '#A0CAFD',
-    onPrimary: '#003258',
+    primary: '#0A84FF',           // iOS blue dark
+    onPrimary: '#000000',
     primaryContainer: '#00497D',
     onPrimaryContainer: '#D1E4FF',
     
     secondary: '#BBC7DB',
     onSecondary: '#253140',
-    secondaryContainer: '#3C4858',
+    secondaryContainer: '#2C2C2E',
     onSecondaryContainer: '#D7E3F7',
     
     tertiary: '#D6BEE4',
@@ -57,25 +57,24 @@ const m3Tokens = {
     tertiaryContainer: '#523F5F',
     onTertiaryContainer: '#F2DAFF',
     
-    error: '#FFB4AB',
-    onError: '#690005',
+    error: '#FF453A',
+    onError: '#000000',
     errorContainer: '#93000A',
     onErrorContainer: '#FFDAD6',
     
-    background: '#111318',
-    onBackground: '#E2E2E9',
-    surface: '#111318',
-    onSurface: '#E2E2E9',
+    background: '#000000',        // iOS dark background
+    onBackground: '#FFFFFF',
+    surface: '#1C1C1E',           // iOS secondarySystemBackground dark
+    onSurface: '#FFFFFF',
     
-    surfaceVariant: '#43474E',
-    onSurfaceVariant: '#C3C6CF',
-    outline: '#8D9199',
-    outlineVariant: '#43474E',
+    surfaceVariant: '#2C2C2E',
+    onSurfaceVariant: '#8E8E93',
+    outline: '#48484A',
+    outlineVariant: '#38383A',
     
-    // Custom brand colors
     kmb: '#FF6B6B',
     ctb: '#FFB347',
-    joint: '#A78BFA',
+    joint: '#30D158',             // iOS green dark
   },
 };
 
@@ -102,6 +101,7 @@ export const lightTheme = createTheme({
     text: {
       primary: m3Tokens.light.onBackground,
       secondary: m3Tokens.light.onSurfaceVariant,
+      disabled: m3Tokens.light.onSurfaceVariant,
     },
   },
   typography: {
@@ -211,6 +211,7 @@ export const darkTheme = createTheme({
     text: {
       primary: m3Tokens.dark.onBackground,
       secondary: m3Tokens.dark.onSurfaceVariant,
+      disabled: m3Tokens.dark.onSurfaceVariant,
     },
   },
   typography: lightTheme.typography,
