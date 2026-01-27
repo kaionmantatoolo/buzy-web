@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import {
   Box,
   Typography,
@@ -9,10 +9,12 @@ import {
   CircularProgress,
   Divider,
   alpha,
+  IconButton,
 } from '@mui/material';
 import LocationOnIcon from '@mui/icons-material/LocationOn';
 import MapIcon from '@mui/icons-material/Map';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
+import RefreshIcon from '@mui/icons-material/Refresh';
 import { PageHeader } from '@/components/layout';
 import { NearbyRouteRow, NearbyRouteRowSkeleton } from '@/components/route';
 import { FullPageLoader } from '@/components/ui';
@@ -36,9 +38,43 @@ export default function NearbyPage() {
   const [isRequestingLocation, setIsRequestingLocation] = useState(false);
   const [permissionDenied, setPermissionDenied] = useState(false);
   const [permissionStatus, setPermissionStatus] = useState<'prompt' | 'granted' | 'denied' | 'checking'>('checking');
+  const [cachedRoutes, setCachedRoutes] = useState<any[]>([]);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [lastRefreshTime, setLastRefreshTime] = useState<string>('');
 
-  // Check permission status without requesting (Safari-safe)
+  const isBrowser = typeof window !== 'undefined';
+  const CACHE_KEY = 'nearby_routes_cache';
+  const CACHE_TIMESTAMP_KEY = 'nearby_routes_cache_timestamp';
+  const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
+  // Check permission status without requesting (Safari-safe) and load cached data
   useEffect(() => {
+    // Load cached data on mount
+    if (isBrowser) {
+      try {
+        const cachedData = sessionStorage.getItem(CACHE_KEY);
+        const cachedTimestamp = sessionStorage.getItem(CACHE_TIMESTAMP_KEY);
+
+        if (cachedData && cachedTimestamp) {
+          const timestamp = parseInt(cachedTimestamp, 10);
+          const now = Date.now();
+
+          // Check if cache is still valid (within 5 minutes)
+          if (now - timestamp < CACHE_DURATION) {
+            const routes = JSON.parse(cachedData);
+            setCachedRoutes(routes);
+            setLastRefreshTime(new Date(timestamp).toLocaleTimeString());
+          } else {
+            // Clear expired cache
+            sessionStorage.removeItem(CACHE_KEY);
+            sessionStorage.removeItem(CACHE_TIMESTAMP_KEY);
+          }
+        }
+      } catch (error) {
+        console.error('Error loading cached data:', error);
+      }
+    }
+
     const hasGeolocation = 'geolocation' in navigator;
 
     if (!hasGeolocation) {
@@ -128,12 +164,49 @@ export default function NearbyPage() {
     );
   }, [setUserLocation]);
 
+  const handleRefresh = useCallback(() => {
+    if (userLocation) {
+      setIsRefreshing(true);
+      updateNearbyRoutes().then(() => {
+        // Save to cache after successful update
+        if (isBrowser && processedNearbyRoutes.length > 0) {
+          try {
+            sessionStorage.setItem(CACHE_KEY, JSON.stringify(processedNearbyRoutes));
+            sessionStorage.setItem(CACHE_TIMESTAMP_KEY, Date.now().toString());
+            setLastRefreshTime(new Date().toLocaleTimeString());
+          } catch (error) {
+            console.error('Error saving to cache:', error);
+          }
+        }
+        setIsRefreshing(false);
+      });
+    }
+  }, [userLocation, updateNearbyRoutes, processedNearbyRoutes]);
+
   useEffect(() => {
     // Only run when we have location AND routes are loaded
     if (!userLocation || loadingState !== 'success' || routes.length === 0) return;
     console.log('[NearbyPage] Effect triggered: updating nearby routes');
-    updateNearbyRoutes();
-  }, [userLocation, discoveryRange, loadingState, routes.length]); // Removed updateNearbyRoutes from deps - Zustand function is stable
+
+    // If we're not refreshing and have cached data, use it temporarily
+    if (!isRefreshing && cachedRoutes.length > 0) {
+      // Use cached data temporarily while fetching fresh data
+    }
+
+    updateNearbyRoutes().then(() => {
+      // Save to cache after successful update
+      if (isBrowser && processedNearbyRoutes.length > 0) {
+        try {
+          sessionStorage.setItem(CACHE_KEY, JSON.stringify(processedNearbyRoutes));
+          sessionStorage.setItem(CACHE_TIMESTAMP_KEY, Date.now().toString());
+          setLastRefreshTime(new Date().toLocaleTimeString());
+        } catch (error) {
+          console.error('Error saving to cache:', error);
+        }
+      }
+      setIsRefreshing(false);
+    });
+  }, [userLocation, discoveryRange, loadingState, routes.length, isRefreshing]); // Removed updateNearbyRoutes from deps - Zustand function is stable
 
   if (loadingState === 'loading') {
     return <FullPageLoader message={t('fetchingRouteData')} />;
@@ -247,7 +320,7 @@ export default function NearbyPage() {
           </Box>
         )}
 
-        {/* Discovery range banner */}
+        {/* Discovery range banner with refresh info */}
         {userLocation && !isRequestingLocation && (
           <Box
             sx={{
@@ -259,14 +332,32 @@ export default function NearbyPage() {
               borderRadius: 2,
               display: 'flex',
               alignItems: 'center',
+              justifyContent: 'space-between',
               gap: 1,
               bgcolor: (theme) => alpha(theme.palette.primary.main, 0.08),
             }}
           >
-            <InfoOutlinedIcon sx={{ fontSize: 18, color: 'primary.main' }} />
-            <Typography variant="bodySmall" color="text.secondary">
-              {t('showingRoutesWithin', discoveryRange)}
-            </Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <InfoOutlinedIcon sx={{ fontSize: 18, color: 'primary.main' }} />
+              <Typography variant="bodySmall" color="text.secondary">
+                {t('showingRoutesWithin', discoveryRange)}
+              </Typography>
+            </Box>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              {lastRefreshTime && (
+                <Typography variant="caption" color="text.secondary">
+                  Updated: {lastRefreshTime}
+                </Typography>
+              )}
+              <IconButton
+                size="small"
+                onClick={handleRefresh}
+                disabled={isRefreshing}
+                sx={{ p: 0.5 }}
+              >
+                <RefreshIcon sx={{ fontSize: 16 }} />
+              </IconButton>
+            </Box>
           </Box>
         )}
 
@@ -285,7 +376,7 @@ export default function NearbyPage() {
                   : '0 1px 3px rgba(0,0,0,0.2)',
             }}
           >
-            {isLoadingNearbyRoutes ? (
+            {(isLoadingNearbyRoutes && !isRefreshing) || (isRefreshing && cachedRoutes.length === 0) ? (
               <>
                 {[...Array(5)].map((_, i) => (
                   <Box key={i}>
@@ -294,9 +385,9 @@ export default function NearbyPage() {
                   </Box>
                 ))}
               </>
-            ) : processedNearbyRoutes.length > 0 ? (
+            ) : (isRefreshing && cachedRoutes.length > 0) || processedNearbyRoutes.length > 0 ? (
               <>
-                {processedNearbyRoutes.map((processedRoute, index) => (
+                {(isRefreshing ? cachedRoutes : processedNearbyRoutes).map((processedRoute: any, index: number) => (
                   <Box key={processedRoute.route.id}>
                     {index > 0 && <Divider sx={{ mx: 2 }} />}
                     <NearbyRouteRow
