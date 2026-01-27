@@ -16,6 +16,7 @@ export const translations = {
     error: 'Error',
     loading: 'Loading...',
     refresh: 'Refresh',
+    updatingEtas: 'Updating ETAs…',
     
     // Route list
     nearbyRoutes: 'Nearby Routes',
@@ -107,6 +108,7 @@ export const translations = {
     error: '出咗問題',
     loading: '載入緊...',
     refresh: '重新整理',
+    updatingEtas: '更新緊到站時間…',
     
     // Route list
     nearbyRoutes: '附近嘅路線',

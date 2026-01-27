@@ -9,6 +9,7 @@ import {
   Collapse,
   Fab,
   Typography,
+  Snackbar,
 } from '@mui/material';
 import MapIcon from '@mui/icons-material/Map';
 import CloseIcon from '@mui/icons-material/Close';
@@ -25,6 +26,7 @@ import {
   getStopUniqueId,
   RouteETA,
 } from '@/lib/types';
+import { calculateDistance } from '@/lib/services/github-data';
 import { useTranslation } from '@/lib/i18n';
 
 export default function RouteDetailPage() {
@@ -49,6 +51,9 @@ export default function RouteDetailPage() {
 
   const [showMap, setShowMap] = useState(true);
   const refreshIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const hasLoadedOnceRef = useRef(false);
+  const isRefreshingRef = useRef(false);
 
   // Parse route params
   const routeNumber = params.routeNumber as string;
@@ -78,10 +83,16 @@ export default function RouteDetailPage() {
   // Fetch ETAs on mount and set up refresh interval
   useEffect(() => {
     if (currentRoute) {
+      // Initial fetch: no toast
       fetchRouteETAs();
 
       refreshIntervalRef.current = setInterval(() => {
-        fetchRouteETAs();
+        // Background refresh: toast instead of in-list indicator
+        isRefreshingRef.current = true;
+        if (hasLoadedOnceRef.current) setToastMessage(t('updatingEtas'));
+        fetchRouteETAs().finally(() => {
+          isRefreshingRef.current = false;
+        });
       }, 15000);
     }
 
@@ -93,6 +104,13 @@ export default function RouteDetailPage() {
     };
   }, [currentRoute, fetchRouteETAs, clearRouteETAs]);
 
+  // Mark "loaded once" so future refreshes can show toast
+  useEffect(() => {
+    if (!hasLoadedOnceRef.current && routeETAs.length > 0) {
+      hasLoadedOnceRef.current = true;
+    }
+  }, [routeETAs.length]);
+
   // Auto-select nearest stop
   useEffect(() => {
     if (currentRoute && userLocation && currentRoute.stops.length > 0 && !expandedStopId) {
@@ -102,10 +120,7 @@ export default function RouteDetailPage() {
       for (const stop of currentRoute.stops) {
         const stopLat = parseFloat(stop.lat);
         const stopLng = parseFloat(stop.long);
-        const distance = Math.sqrt(
-          Math.pow(stopLat - userLocation.lat, 2) +
-            Math.pow(stopLng - userLocation.lng, 2)
-        );
+        const distance = calculateDistance(userLocation.lat, userLocation.lng, stopLat, stopLng);
 
         if (distance < minDistance) {
           minDistance = distance;
@@ -143,12 +158,14 @@ export default function RouteDetailPage() {
     (stopId: string) => {
       if (expandedStopId === stopId) {
         setExpandedStopId(null);
+        // iOS behavior: when collapsing, go back to route-level ETAs
+        fetchRouteETAs();
       } else {
         setExpandedStopId(stopId);
         fetchStopETAs(stopId);
       }
     },
-    [expandedStopId, setExpandedStopId, fetchStopETAs]
+    [expandedStopId, setExpandedStopId, fetchStopETAs, fetchRouteETAs]
   );
 
   // Handle map stop selection
@@ -240,15 +257,21 @@ export default function RouteDetailPage() {
         </Box>
       )}
 
-      {/* Loading indicator */}
-      {isLoadingETAs && (
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', py: 1, gap: 1 }}>
-          <LoadingSpinner size="small" />
-          <Typography variant="bodySmall" color="text.secondary">
-            Updating ETAs...
-          </Typography>
-        </Box>
-      )}
+      {/* Toast-style refresh indicator (avoid top-of-list banner) */}
+      <Snackbar
+        open={!!toastMessage && hasLoadedOnceRef.current}
+        message={toastMessage ?? ''}
+        autoHideDuration={1200}
+        onClose={() => setToastMessage(null)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+        sx={{
+          '& .MuiSnackbarContent-root': {
+            borderRadius: 999,
+          },
+          // Keep above bottom nav + safe area
+          mb: 'calc(64px + env(safe-area-inset-bottom, 0px) + 10px)',
+        }}
+      />
 
       {/* Stop list */}
       <Box sx={{ flex: 1, overflow: 'auto' }}>
@@ -264,6 +287,7 @@ export default function RouteDetailPage() {
                 etas={stopETAs}
                 isExpanded={expandedStopId === uniqueId}
                 isSelected={expandedStopId === uniqueId}
+                isLoading={isLoadingETAs && expandedStopId === uniqueId}
                 onToggle={() => handleStopToggle(uniqueId)}
                 onSelect={() => handleMapStopSelect(uniqueId)}
                 isFirst={index === 0}

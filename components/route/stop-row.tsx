@@ -7,6 +7,8 @@ import {
   ButtonBase,
   Stack,
   Skeleton,
+  alpha,
+  useTheme,
 } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { StopDetail, RouteETA, getStopName, getStopUniqueId } from '@/lib/types';
@@ -20,6 +22,7 @@ interface StopRowProps {
   etas: RouteETA[];
   isExpanded: boolean;
   isSelected: boolean;
+  isLoading?: boolean;
   onToggle: () => void;
   onSelect: () => void;
   isFirst?: boolean;
@@ -31,6 +34,7 @@ export function StopRow({
   etas,
   isExpanded,
   isSelected,
+  isLoading = false,
   onToggle,
   onSelect,
   isFirst = false,
@@ -38,6 +42,7 @@ export function StopRow({
 }: StopRowProps) {
   const { locale } = useTranslation();
   const useCTBInfo = useSettingsStore(state => state.useCTBInfoForJointRoutes);
+  const theme = useTheme();
 
   const stopName = getStopName(stop, locale, useCTBInfo);
 
@@ -54,18 +59,19 @@ export function StopRow({
         position: 'relative',
         borderLeft: 4,
         borderColor: isSelected ? 'primary.main' : 'divider',
-        bgcolor: isSelected ? 'primary.main' : 'transparent',
-        transition: 'all 0.2s',
+        // iOS-style: subtle tint on expanded/selected rows (never full primary fill)
+        bgcolor: isExpanded
+          ? alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.14 : 0.07)
+          : isSelected
+            ? alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.10 : 0.06)
+            : 'transparent',
+        borderRadius: isExpanded ? 2 : 0,
+        transition: 'all 0.2s ease',
         '&:hover': {
-          bgcolor: isSelected ? 'primary.main' : 'action.hover',
+          bgcolor: isExpanded || isSelected
+            ? alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.18 : 0.10)
+            : 'action.hover',
         },
-        // Fix: Make the selected background use a lighter tint
-        ...(isSelected && {
-          bgcolor: 'primary.light',
-          '& .MuiTypography-root': {
-            color: 'primary.contrastText',
-          },
-        }),
       }}
     >
       {/* Timeline connector */}
@@ -122,9 +128,8 @@ export function StopRow({
             <Stack direction="row" spacing={1} alignItems="center">
               <Typography
                 variant="labelSmall"
-                sx={{ 
-                  color: isSelected ? 'primary.contrastText' : 'text.disabled',
-                  opacity: isSelected ? 0.8 : 1,
+                sx={{
+                  color: 'text.disabled',
                   width: 20,
                 }}
               >
@@ -133,8 +138,8 @@ export function StopRow({
               <Typography
                 variant="bodyMedium"
                 sx={{
-                  fontWeight: isSelected ? 600 : 400,
-                  color: isSelected ? 'primary.contrastText' : 'text.primary',
+                  fontWeight: isSelected || isExpanded ? 600 : 400,
+                  color: 'text.primary',
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
                   whiteSpace: 'nowrap',
@@ -150,7 +155,7 @@ export function StopRow({
             <Typography
               variant="labelMedium"
               sx={{
-                color: isSelected ? 'primary.contrastText' : 'primary.main',
+                color: 'primary.main',
                 fontWeight: 600,
               }}
             >
@@ -161,7 +166,7 @@ export function StopRow({
           {/* Expand indicator */}
           <ExpandMoreIcon
             sx={{
-              color: isSelected ? 'primary.contrastText' : 'action.active',
+              color: 'action.active',
               transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
               transition: 'transform 0.2s',
             }}
@@ -172,20 +177,38 @@ export function StopRow({
       {/* Expanded ETA details */}
       <Collapse in={isExpanded}>
         <Box sx={{ pl: 7, pr: 2, pb: 2 }}>
-          <ETAList etas={validETAs} maxItems={3} />
+          <Box
+            sx={{
+              bgcolor: 'background.paper',
+              borderRadius: 2,
+              border: 1,
+              borderColor: 'divider',
+              px: 1.5,
+              py: 1.25,
+            }}
+          >
+            {isLoading && validETAs.length === 0 ? (
+              <Stack spacing={0.75}>
+                <Skeleton variant="rounded" height={18} width="60%" />
+                <Skeleton variant="rounded" height={18} width="45%" />
+              </Stack>
+            ) : (
+              <ETAList etas={validETAs} maxItems={3} />
+            )}
 
-          {/* Company badges if multiple */}
-          {validETAs.length > 0 && (
-            <Stack direction="row" spacing={0.5} sx={{ mt: 1 }}>
-              {Array.from(new Set(validETAs.map(e => e.co))).map(co => (
-                <CompanyBadge
-                  key={co}
-                  company={co as 'KMB' | 'CTB' | 'Both'}
-                  size="small"
-                />
-              ))}
-            </Stack>
-          )}
+            {/* Company badges if multiple */}
+            {validETAs.length > 0 && (
+              <Stack direction="row" spacing={0.5} sx={{ mt: 1 }}>
+                {Array.from(new Set(validETAs.map(e => e.co))).map(co => (
+                  <CompanyBadge
+                    key={co}
+                    company={co as 'KMB' | 'CTB' | 'Both'}
+                    size="small"
+                  />
+                ))}
+              </Stack>
+            )}
+          </Box>
         </Box>
       </Collapse>
     </Box>
