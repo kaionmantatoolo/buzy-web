@@ -35,7 +35,10 @@ export function BottomNav() {
         left: 0,
         right: 0,
         zIndex: 1100,
-        paddingBottom: 'env(safe-area-inset-bottom)',
+        // Give the nav a little extra breathing room so that
+        // when the site is installed as an app (standalone/PWA),
+        // the bar clears the home‑indicator area nicely.
+        paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 8px)',
       }}
       elevation={3}
     >

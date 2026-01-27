@@ -158,17 +158,26 @@ export default function SearchPage() {
           position: 'fixed',
           left: '50%',
           transform: 'translateX(-50%)',
-          bottom: 80, // Above bottom nav (64px + spacing)
+          // Keep the keypad comfortably above the bottom navigation,
+          // accounting for safe‑area insets when installed as a PWA.
+          bottom: 'calc(64px + env(safe-area-inset-bottom, 0px) + 12px)',
           zIndex: 1000,
           width: '100%',
           maxWidth: 600,
           boxSizing: 'border-box',
-          bgcolor: 'background.paper',
-          borderTop: 1,
-          borderColor: 'divider',
           px: 2,
           pt: 1.25,
-          pb: 'max(10px, env(safe-area-inset-bottom, 0px))',
+          pb: 'max(12px, env(safe-area-inset-bottom, 0px))',
+          // Make the keypad look like a single floating card with
+          // clean rounded frame instead of a hard edge.
+          borderRadius: 3,
+          bgcolor: 'background.paper',
+          boxShadow: (theme) =>
+            theme.palette.mode === 'light'
+              ? '0 8px 20px rgba(0,0,0,0.18)'
+              : '0 8px 24px rgba(0,0,0,0.6)',
+          border: 1,
+          borderColor: 'divider',
         }}
       >
         <Stack spacing={1.25}>
