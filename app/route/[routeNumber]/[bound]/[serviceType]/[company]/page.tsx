@@ -4,8 +4,6 @@ import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import {
   Box,
-  IconButton,
-  Stack,
   Collapse,
   Fab,
   Typography,
@@ -13,7 +11,6 @@ import {
 } from '@mui/material';
 import MapIcon from '@mui/icons-material/Map';
 import CloseIcon from '@mui/icons-material/Close';
-import MyLocationIcon from '@mui/icons-material/MyLocation';
 import { PageHeader } from '@/components/layout';
 import { FavoriteButton, LoadingSpinner } from '@/components/ui';
 import { StopRow, StopRowSkeleton } from '@/components/route';
@@ -111,7 +108,7 @@ export default function RouteDetailPage() {
     }
   }, [routeETAs.length]);
 
-  // Auto-select nearest stop
+  // Auto-select nearest stop and scroll to it
   useEffect(() => {
     if (currentRoute && userLocation && currentRoute.stops.length > 0 && !expandedStopId) {
       let nearestStop = currentRoute.stops[0];
@@ -128,7 +125,16 @@ export default function RouteDetailPage() {
         }
       }
 
-      setExpandedStopId(getStopUniqueId(nearestStop));
+      const nearestStopId = getStopUniqueId(nearestStop);
+      setExpandedStopId(nearestStopId);
+
+      // Auto-scroll to the nearest stop after a short delay to ensure DOM is updated
+      setTimeout(() => {
+        const element = document.getElementById(`stop-${nearestStopId}`);
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 100);
     }
   }, [currentRoute, userLocation, expandedStopId, setExpandedStopId]);
 
@@ -289,7 +295,6 @@ export default function RouteDetailPage() {
                 isSelected={expandedStopId === uniqueId}
                 isLoading={isLoadingETAs && expandedStopId === uniqueId}
                 onToggle={() => handleStopToggle(uniqueId)}
-                onSelect={() => handleMapStopSelect(uniqueId)}
                 isFirst={index === 0}
                 isLast={index === currentRoute.stops.length - 1}
               />

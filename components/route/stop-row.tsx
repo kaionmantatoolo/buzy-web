@@ -24,7 +24,6 @@ interface StopRowProps {
   isSelected: boolean;
   isLoading?: boolean;
   onToggle: () => void;
-  onSelect: () => void;
   isFirst?: boolean;
   isLast?: boolean;
 }
@@ -112,6 +111,7 @@ export function StopRow({
 
       {/* Stop content */}
       <ButtonBase
+        id={`stop-${getStopUniqueId(stop)}`}
         onClick={onToggle}
         sx={{
           width: '100%',
