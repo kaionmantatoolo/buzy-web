@@ -189,15 +189,17 @@ export default function RouteDetailPage() {
   const destination = getRouteDestination(currentRoute, locale, useCTBInfo);
 
   return (
-    <Box sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
-      {/* Header */}
-      <PageHeader
-        title={`${currentRoute.routeNumber} ${t('to')} ${destination}`}
-        showBack
-        rightContent={<FavoriteButton route={currentRoute} size="small" />}
-      />
+    <Box sx={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
+      {/* Fixed header */}
+      <Box sx={{ flex: '0 0 auto' }}>
+        <PageHeader
+          title={`${currentRoute.routeNumber} ${t('to')} ${destination}`}
+          showBack
+          rightContent={<FavoriteButton route={currentRoute} size="small" />}
+        />
+      </Box>
 
-      {/* Map section - fixed at top, takes 35% of screen when visible */}
+      {/* Fixed map section - takes 35% of screen when visible */}
       <Collapse in={showMap}>
         <Box sx={{ height: '35vh', flex: '0 0 auto', position: 'relative' }}>
           <RouteMap
