@@ -35,7 +35,6 @@ export function StopRow({
   isSelected,
   isLoading = false,
   onToggle,
-  onSelect,
   isFirst = false,
   isLast = false,
 }: StopRowProps) {
