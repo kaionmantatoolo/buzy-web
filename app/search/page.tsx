@@ -111,8 +111,7 @@ export default function SearchPage() {
   return (
     <Box
       sx={{
-        flex: 1,
-        minHeight: 0,
+        height: '100%',
         display: 'flex',
         flexDirection: 'column',
         overflow: 'hidden',
@@ -120,16 +119,16 @@ export default function SearchPage() {
     >
       <PageHeader title={t('search')} />
 
-      {/* Results ScrollView - matches iOS ScrollView */}
+      {/* Results ScrollView - constrained height, scrolls independently */}
       <Box
         sx={{
-          flex: 1,
-          minHeight: 0,
+          flex: '1 1 0%', // Take available space but can shrink
+          minHeight: 0, // Critical for flex children to respect overflow
           overflowY: 'auto',
           overflowX: 'hidden',
           WebkitOverflowScrolling: 'touch',
           bgcolor: 'background.default',
-          pb: 2.5, // iOS: .padding(.bottom, 20)
+          pb: 2.5,
         }}
       >
         {searchText ? (
@@ -161,13 +160,15 @@ export default function SearchPage() {
         )}
       </Box>
 
-      {/* Search bar + Keypad VStack - matches iOS VStack below ScrollView */}
+      {/* Search bar + Keypad - always visible at bottom */}
       <Box
         sx={{
-          flexShrink: 0,
+          flexShrink: 0, // Never shrink
           bgcolor: 'background.paper',
-          px: 2, // iOS: .padding(.horizontal)
-          pb: 1.25, // iOS: .padding(.bottom, 10)
+          borderTop: 1,
+          borderColor: 'divider',
+          px: 2,
+          pb: 1.25,
           pt: 1.25,
         }}
       >
@@ -208,7 +209,7 @@ export default function SearchPage() {
             )}
           </Paper>
 
-          {/* Keypad HStack - matches iOS HStack */}
+          {/* Keypad HStack */}
           <Stack direction="row" spacing={1.25} alignItems="flex-start">
             {/* Number pad */}
             <Paper 
@@ -238,7 +239,7 @@ export default function SearchPage() {
                           disabled={isDisabled}
                           sx={{
                             flex: 1,
-                            height: 60, // iOS: minHeight: 60
+                            height: 60,
                             borderRadius: 2,
                             bgcolor: isSpecial 
                               ? alpha(theme.palette.error.main, 0.12)
@@ -273,7 +274,7 @@ export default function SearchPage() {
               </Stack>
             </Paper>
 
-            {/* Alphabet column - matches iOS VStack with ScrollView */}
+            {/* Alphabet column */}
             <Paper 
               elevation={1}
               sx={{ 
@@ -283,7 +284,7 @@ export default function SearchPage() {
                 borderRadius: 4,
                 display: 'flex',
                 flexDirection: 'column',
-                height: 4 * 60 + 3 * 5, // Match number pad height (4 rows * 60px + 3 gaps * 5px)
+                height: 4 * 60 + 3 * 5,
               }}
             >
               <Box 
@@ -343,7 +344,7 @@ export default function SearchPage() {
   );
 }
 
-// Route list item component - matches iOS HStack layout
+// Route list item component
 interface RouteListItemProps {
   route: Route;
   isFavorite: boolean;
@@ -360,8 +361,8 @@ function RouteListItem({ route, isFavorite: isFav, locale, useCTBInfo }: RouteLi
         component={Link}
         href={`/route/${route.routeNumber}/${route.bound}/${route.serviceType}/${route.company}`}
         sx={{ 
-          py: 1.5, // iOS: .padding(.vertical, 12)
-          px: 2, // iOS: .padding(.leading/trailing, 16)
+          py: 1.5,
+          px: 2,
           bgcolor: 'background.paper',
         }}
       >
@@ -372,7 +373,7 @@ function RouteListItem({ route, isFavorite: isFav, locale, useCTBInfo }: RouteLi
             sx={{ 
               fontWeight: 700, 
               minWidth: 80,
-              color: 'text.primary', // iOS: .foregroundColor(.primary)
+              color: 'text.primary',
             }}
           >
             {route.routeNumber}
@@ -385,7 +386,7 @@ function RouteListItem({ route, isFavorite: isFav, locale, useCTBInfo }: RouteLi
           <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
             <Typography
               variant="bodyMedium"
-              color="text.secondary" // iOS: .foregroundColor(.secondary)
+              color="text.secondary"
               sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
             >
               {destination}

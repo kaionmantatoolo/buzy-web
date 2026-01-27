@@ -30,6 +30,7 @@ export function AppShell({ children }: AppShellProps) {
           display: 'flex',
           flexDirection: 'column',
           minHeight: 0,
+          height: isSearchPage ? '100vh' : undefined, // Full height for search page
           overflow: isSearchPage ? 'hidden' : undefined,
           pb: isRouteDetail ? 0 : '80px', // Space for bottom nav
         }}
