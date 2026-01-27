@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { Box } from '@mui/material';
+import { Box, useTheme } from '@mui/material';
 import { StopDetail, getStopLocation, getStopName } from '@/lib/types';
 import { useSettingsStore } from '@/lib/stores';
 
@@ -31,6 +31,7 @@ export function RouteMap({
   const userMarkerRef = useRef<any>(null);
   const polylineRef = useRef<any>(null);
   
+  const theme = useTheme();
   const locale = useSettingsStore(state => state.locale);
   const useCTBInfo = useSettingsStore(state => state.useCTBInfoForJointRoutes);
 
@@ -104,7 +105,7 @@ export function RouteMap({
   useEffect(() => {
     if (!mapInstanceRef.current || !window.L) return;
     updateMarkers(stops, selectedStopId);
-  }, [stops, selectedStopId, locale, useCTBInfo]);
+  }, [stops, selectedStopId, locale, useCTBInfo, theme]);
 
   // Update user location marker
   useEffect(() => {
@@ -117,6 +118,12 @@ export function RouteMap({
         userMarkerRef.current.setLatLng([userLocation.lat, userLocation.lng]);
       } else {
         // Create user location marker with pulsing effect
+        // Convert theme primary color to RGB for rgba
+        const primaryRgb = theme.palette.primary.main
+          .replace('#', '')
+          .match(/.{2}/g)
+          ?.map(x => parseInt(x, 16)) || [103, 80, 164];
+        
         const userIcon = L.divIcon({
           className: 'user-location-marker',
           html: `
@@ -125,7 +132,7 @@ export function RouteMap({
                 position: absolute;
                 width: 32px;
                 height: 32px;
-                background: rgba(0, 122, 255, 0.3);
+                background: rgba(${primaryRgb[0]}, ${primaryRgb[1]}, ${primaryRgb[2]}, 0.3);
                 border-radius: 50%;
                 animation: pulse 2s infinite;
                 top: -8px;
@@ -134,7 +141,7 @@ export function RouteMap({
               <div style="
                 width: 16px;
                 height: 16px;
-                background: #007AFF;
+                background: ${theme.palette.primary.main};
                 border: 2px solid white;
                 border-radius: 50%;
                 box-shadow: 0 2px 4px rgba(0,0,0,0.3);
@@ -154,7 +161,7 @@ export function RouteMap({
       userMarkerRef.current.remove();
       userMarkerRef.current = null;
     }
-  }, [userLocation]);
+  }, [userLocation, theme]);
 
   // Update route polyline
   useEffect(() => {
@@ -174,12 +181,12 @@ export function RouteMap({
     });
     
     polylineRef.current = L.polyline(coordinates, {
-      color: '#007AFF',
+      color: theme.palette.primary.main,
       weight: 4,
       opacity: 0.7,
       lineJoin: 'round',
     }).addTo(mapInstanceRef.current);
-  }, [stops]);
+  }, [stops, theme]);
 
   // Pan to selected stop
   useEffect(() => {
@@ -223,9 +230,9 @@ export function RouteMap({
       let textColor = '#374151';
       
       if (isSelected) {
-        bgColor = '#007AFF';
-        borderColor = '#007AFF';
-        textColor = '#ffffff';
+        bgColor = theme.palette.primary.main;
+        borderColor = theme.palette.primary.main;
+        textColor = theme.palette.primary.contrastText;
       } else if (isFirst || isLast) {
         bgColor = '#f97316';
         borderColor = '#f97316';

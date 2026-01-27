@@ -2,96 +2,105 @@
 
 import { createTheme, ThemeOptions } from '@mui/material/styles';
 
-// Material 3 + iOS Buzy color tokens
-// iOS: route # blue, KMB red, CTB yellow, Joint green; system backgrounds
+// Pure Material 3 expressive color tokens
+// Using Material 3 dynamic color system with expressive palette
 const m3Tokens = {
   light: {
-    primary: '#007AFF',           // iOS blue
+    primary: '#6750A4',           // M3 expressive purple
     onPrimary: '#FFFFFF',
-    primaryContainer: '#D1E4FF',
-    onPrimaryContainer: '#001D36',
+    primaryContainer: '#EADDFF',
+    onPrimaryContainer: '#21005D',
     
-    secondary: '#535F70',
+    secondary: '#625B71',
     onSecondary: '#FFFFFF',
-    secondaryContainer: '#E5E5EA',
-    onSecondaryContainer: '#101C2B',
+    secondaryContainer: '#E8DEF8',
+    onSecondaryContainer: '#1D192B',
     
-    tertiary: '#6B5778',
+    tertiary: '#7D5260',
     onTertiary: '#FFFFFF',
-    tertiaryContainer: '#F2DAFF',
-    onTertiaryContainer: '#251432',
+    tertiaryContainer: '#FFD8E4',
+    onTertiaryContainer: '#31111D',
     
     error: '#BA1A1A',
     onError: '#FFFFFF',
     errorContainer: '#FFDAD6',
     onErrorContainer: '#410002',
     
-    background: '#F2F2F7',        // iOS secondarySystemBackground
-    onBackground: '#000000',
-    surface: '#FFFFFF',           // iOS systemBackground
-    onSurface: '#000000',
+    background: '#FFFBFE',
+    onBackground: '#1C1B1F',
+    surface: '#FFFBFE',
+    onSurface: '#1C1B1F',
+    surfaceDim: '#DDD8E1',
+    surfaceBright: '#FFFBFE',
     
-    surfaceVariant: '#E5E5EA',    // iOS systemGray5
-    onSurfaceVariant: '#8E8E93',
-    outline: '#C7C7CC',
-    outlineVariant: '#E5E5EA',
+    surfaceVariant: '#E7E0EC',
+    onSurfaceVariant: '#49454F',
+    outline: '#79747E',
+    outlineVariant: '#CAC4D0',
     
-    // iOS app brand colors (RouteBadge)
-    kmb: '#E60012',
-    ctb: '#F7941D',
-    joint: '#34C759',             // iOS green
+    // Brand colors with M3 expressive tones
+    kmb: '#B3261E',              // M3 expressive red
+    ctb: '#F57C00',              // M3 expressive orange
+    joint: '#006C4C',            // M3 expressive green
   },
   dark: {
-    primary: '#0A84FF',           // iOS blue dark
-    onPrimary: '#000000',
-    primaryContainer: '#00497D',
-    onPrimaryContainer: '#D1E4FF',
+    primary: '#D0BCFF',          // M3 expressive purple light
+    onPrimary: '#381E72',
+    primaryContainer: '#4F378B',
+    onPrimaryContainer: '#EADDFF',
     
-    secondary: '#BBC7DB',
-    onSecondary: '#253140',
-    secondaryContainer: '#2C2C2E',
-    onSecondaryContainer: '#D7E3F7',
+    secondary: '#CCC2DC',
+    onSecondary: '#332D41',
+    secondaryContainer: '#4A4458',
+    onSecondaryContainer: '#E8DEF8',
     
-    tertiary: '#D6BEE4',
-    onTertiary: '#3B2948',
-    tertiaryContainer: '#523F5F',
-    onTertiaryContainer: '#F2DAFF',
+    tertiary: '#EFB8C8',
+    onTertiary: '#492532',
+    tertiaryContainer: '#633B48',
+    onTertiaryContainer: '#FFD8E4',
     
-    error: '#FF453A',
-    onError: '#000000',
+    error: '#FFB4AB',
+    onError: '#690005',
     errorContainer: '#93000A',
     onErrorContainer: '#FFDAD6',
     
-    background: '#000000',        // iOS dark background
-    onBackground: '#FFFFFF',
-    surface: '#1C1C1E',           // iOS secondarySystemBackground dark
-    onSurface: '#FFFFFF',
+    background: '#1C1B1F',
+    onBackground: '#E6E1E5',
+    surface: '#1C1B1F',
+    onSurface: '#E6E1E5',
+    surfaceDim: '#141218',
+    surfaceBright: '#36333B',
     
-    surfaceVariant: '#2C2C2E',
-    onSurfaceVariant: '#8E8E93',
-    outline: '#48484A',
-    outlineVariant: '#38383A',
+    surfaceVariant: '#49454F',
+    onSurfaceVariant: '#CAC4D0',
+    outline: '#938F99',
+    outlineVariant: '#49454F',
     
-    kmb: '#FF6B6B',
-    ctb: '#FFB347',
-    joint: '#30D158',             // iOS green dark
+    kmb: '#F2B8B5',
+    ctb: '#FFB74D',
+    joint: '#4CAF50',
   },
 };
 
-// Create light theme
+// Create light theme with M3 expressive design
 export const lightTheme = createTheme({
   palette: {
     mode: 'light',
     primary: {
       main: m3Tokens.light.primary,
+      light: m3Tokens.light.primaryContainer,
+      dark: '#4F378B',
       contrastText: m3Tokens.light.onPrimary,
     },
     secondary: {
       main: m3Tokens.light.secondary,
+      light: m3Tokens.light.secondaryContainer,
+      dark: '#4A4458',
       contrastText: m3Tokens.light.onSecondary,
     },
     error: {
       main: m3Tokens.light.error,
+      light: m3Tokens.light.errorContainer,
       contrastText: m3Tokens.light.onError,
     },
     background: {
@@ -124,21 +133,22 @@ export const lightTheme = createTheme({
     labelSmall: { fontSize: '11px', lineHeight: '16px', letterSpacing: '0.5px', fontWeight: 500 },
   },
   shape: {
-    borderRadius: 12, // Material 3 uses more rounded corners
+    borderRadius: 16, // M3 expressive uses larger radius
   },
   components: {
     MuiButton: {
       styleOverrides: {
         root: {
-          borderRadius: '20px', // Pill-shaped buttons in M3
+          borderRadius: '28px', // M3 expressive pill shape
           textTransform: 'none',
           fontWeight: 500,
           padding: '10px 24px',
+          boxShadow: 'none',
         },
         contained: {
-          boxShadow: 'none',
+          boxShadow: '0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24)',
           '&:hover': {
-            boxShadow: '0 1px 3px rgba(0,0,0,0.12)',
+            boxShadow: '0 3px 6px rgba(0,0,0,0.16), 0 3px 6px rgba(0,0,0,0.23)',
           },
         },
       },
@@ -146,9 +156,9 @@ export const lightTheme = createTheme({
     MuiCard: {
       styleOverrides: {
         root: {
-          borderRadius: '12px',
-          boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
-          border: `1px solid ${m3Tokens.light.outlineVariant}`,
+          borderRadius: '28px', // M3 expressive large radius
+          boxShadow: '0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24)',
+          border: 'none',
         },
       },
     },
@@ -156,7 +166,7 @@ export const lightTheme = createTheme({
       styleOverrides: {
         root: {
           borderRadius: '16px',
-          boxShadow: '0 3px 5px -1px rgba(0,0,0,0.1), 0 6px 10px 0 rgba(0,0,0,0.07)',
+          boxShadow: '0 3px 5px -1px rgba(0,0,0,0.2), 0 6px 10px 0 rgba(0,0,0,0.14)',
         },
       },
     },
@@ -164,6 +174,16 @@ export const lightTheme = createTheme({
       styleOverrides: {
         root: {
           borderRadius: '8px',
+        },
+      },
+    },
+    MuiPaper: {
+      styleOverrides: {
+        root: {
+          borderRadius: '16px',
+        },
+        rounded: {
+          borderRadius: '16px',
         },
       },
     },
@@ -194,14 +214,19 @@ export const darkTheme = createTheme({
     mode: 'dark',
     primary: {
       main: m3Tokens.dark.primary,
+      light: m3Tokens.dark.primaryContainer,
+      dark: '#4F378B',
       contrastText: m3Tokens.dark.onPrimary,
     },
     secondary: {
       main: m3Tokens.dark.secondary,
+      light: m3Tokens.dark.secondaryContainer,
+      dark: '#4A4458',
       contrastText: m3Tokens.dark.onSecondary,
     },
     error: {
       main: m3Tokens.dark.error,
+      light: m3Tokens.dark.errorContainer,
       contrastText: m3Tokens.dark.onError,
     },
     background: {
@@ -221,9 +246,9 @@ export const darkTheme = createTheme({
     MuiCard: {
       styleOverrides: {
         root: {
-          borderRadius: '12px',
-          boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
-          border: `1px solid ${m3Tokens.dark.outlineVariant}`,
+          borderRadius: '28px',
+          boxShadow: '0 1px 3px rgba(0,0,0,0.3), 0 1px 2px rgba(0,0,0,0.4)',
+          border: 'none',
           backgroundColor: m3Tokens.dark.surface,
         },
       },

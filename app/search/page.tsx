@@ -13,6 +13,8 @@ import {
   ListItem,
   ListItemButton,
   Chip,
+  useTheme,
+  alpha,
 } from '@mui/material';
 import ClearIcon from '@mui/icons-material/Clear';
 import BackspaceIcon from '@mui/icons-material/Backspace';
@@ -33,6 +35,7 @@ const numberRows = [
 
 export default function SearchPage() {
   const { t, locale } = useTranslation();
+  const theme = useTheme();
   const { routes, loadingState } = useRouteStore();
   const { isFavorite } = useFavoritesStore();
   const useCTBInfo = useSettingsStore(state => state.useCTBInfoForJointRoutes);
@@ -41,7 +44,6 @@ export default function SearchPage() {
   // Get available alphabets based on current search
   const availableAlphabets = useMemo(() => {
     if (searchText === '') {
-      // Get all unique first letters that are alphabetic
       const firstLetters = new Set(
         routes
           .map(r => r.routeNumber.charAt(0).toUpperCase())
@@ -49,7 +51,6 @@ export default function SearchPage() {
       );
       const sorted = Array.from(firstLetters).sort();
       
-      // Check if it's night time (23:00 - 06:00), prioritize 'N' routes
       const hour = new Date().getHours();
       if (hour >= 23 || hour < 6) {
         const withN = sorted.filter(l => l !== 'N');
@@ -57,7 +58,6 @@ export default function SearchPage() {
       }
       return sorted;
     } else {
-      // Get next possible letters after current search text
       const nextLetters = new Set(
         routes
           .filter(r => r.routeNumber.toLowerCase().startsWith(searchText.toLowerCase()))
@@ -74,7 +74,6 @@ export default function SearchPage() {
     }
   }, [routes, searchText]);
 
-  // Check if a number is valid for the next character
   const isNumberEnabled = useCallback((num: string) => {
     if (searchText === '') return true;
     
@@ -87,7 +86,6 @@ export default function SearchPage() {
     });
   }, [routes, searchText]);
 
-  // Filter routes based on search text
   const filteredRoutes = useMemo(() => {
     if (!searchText.trim()) {
       return [];
@@ -100,7 +98,6 @@ export default function SearchPage() {
       .slice(0, 50);
   }, [routes, searchText]);
 
-  // Handle keypad input
   const handleInput = useCallback((char: string) => {
     if (char === 'C') {
       setSearchText('');
@@ -123,14 +120,15 @@ export default function SearchPage() {
     >
       <PageHeader title={t('search')} />
 
-      {/* Results area - only this scrolls */}
+      {/* Results area - takes available space above keypad, scrollable */}
       <Box
         sx={{
-          flex: 1,
+          flex: '1 1 auto',
           minHeight: 0,
           overflowY: 'auto',
           overflowX: 'hidden',
           WebkitOverflowScrolling: 'touch',
+          bgcolor: 'background.default',
         }}
       >
         {searchText ? (
@@ -173,15 +171,17 @@ export default function SearchPage() {
         }}
       >
         {/* Search bar */}
-        <Box sx={{ px: 2, pt: 2, pb: 1 }}>
+        <Box sx={{ px: 2, pt: 2, pb: 1.5 }}>
           <Paper
+            elevation={0}
             sx={{
               px: 2,
               py: 1.5,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
-              bgcolor: 'action.hover',
+              bgcolor: (theme) => alpha(theme.palette.primary.main, 0.08),
+              borderRadius: 3,
             }}
           >
             <Typography
@@ -195,20 +195,34 @@ export default function SearchPage() {
               {searchText || t('searchRoute')}
             </Typography>
             {searchText && (
-              <IconButton onClick={() => setSearchText('')} size="small">
+              <IconButton 
+                onClick={() => setSearchText('')} 
+                size="small"
+                sx={{
+                  color: 'text.secondary',
+                }}
+              >
                 <ClearIcon />
               </IconButton>
             )}
           </Paper>
         </Box>
 
-        {/* Keypad section */}
-        <Box sx={{ px: 2, pb: 2, display: 'flex', gap: 1 }}>
+        {/* Keypad section - M3 expressive design */}
+        <Box sx={{ px: 2, pb: 2, display: 'flex', gap: 1.5 }}>
           {/* Number pad */}
-          <Paper sx={{ flex: 1, p: 1, bgcolor: 'action.hover' }}>
-            <Stack spacing={1}>
+          <Paper 
+            elevation={1}
+            sx={{ 
+              flex: 1, 
+              p: 1.5, 
+              bgcolor: 'surfaceVariant.main',
+              borderRadius: 4,
+            }}
+          >
+            <Stack spacing={1.5}>
               {numberRows.map((row, rowIndex) => (
-                <Stack key={rowIndex} direction="row" spacing={1}>
+                <Stack key={rowIndex} direction="row" spacing={1.5}>
                   {row.map(char => {
                     const isDisabled = 
                       (char === '⌫' && searchText === '') ||
@@ -224,18 +238,29 @@ export default function SearchPage() {
                         disabled={isDisabled}
                         sx={{
                           flex: 1,
-                          height: 52,
-                          borderRadius: 2,
-                          bgcolor: isSpecial ? 'action.selected' : 'background.paper',
-                          color: isDisabled ? 'text.disabled' : 'text.primary',
+                          height: 56,
+                          borderRadius: 3,
+                          bgcolor: isSpecial 
+                            ? alpha(theme.palette.error.main, 0.12)
+                            : 'background.paper',
+                          color: isDisabled 
+                            ? 'text.disabled' 
+                            : isSpecial 
+                              ? 'error.main'
+                              : 'text.primary',
                           fontSize: char === '⌫' ? '1.25rem' : '1.5rem',
-                          fontWeight: 500,
-                          transition: 'all 0.15s',
+                          fontWeight: 600,
+                          transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                          boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
                           '&:hover:not(:disabled)': {
-                            bgcolor: 'action.hover',
+                            bgcolor: isSpecial
+                              ? alpha(theme.palette.error.main, 0.16)
+                              : alpha(theme.palette.primary.main, 0.08),
+                            transform: 'translateY(-1px)',
+                            boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
                           },
                           '&:active:not(:disabled)': {
-                            transform: 'scale(0.95)',
+                            transform: 'scale(0.96)',
                           },
                         }}
                       >
@@ -250,10 +275,12 @@ export default function SearchPage() {
 
           {/* Alphabet column */}
           <Paper 
+            elevation={1}
             sx={{ 
-              width: 56, 
-              p: 1, 
-              bgcolor: 'action.hover',
+              width: 60, 
+              p: 1.5, 
+              bgcolor: 'surfaceVariant.main',
+              borderRadius: 4,
               display: 'flex',
               flexDirection: 'column',
             }}
@@ -264,8 +291,8 @@ export default function SearchPage() {
                 overflow: 'auto',
                 display: 'flex',
                 flexDirection: 'column',
-                gap: 0.5,
-                maxHeight: 4 * 52 + 3 * 8, // Match number pad height
+                gap: 1,
+                maxHeight: 4 * 56 + 3 * 6, // Match number pad height
               }}
             >
               {availableAlphabets.length > 0 ? (
@@ -274,19 +301,22 @@ export default function SearchPage() {
                     key={letter}
                     onClick={() => handleInput(letter)}
                     sx={{
-                      height: 40,
-                      minHeight: 40,
-                      borderRadius: 1.5,
+                      height: 44,
+                      minHeight: 44,
+                      borderRadius: 2.5,
                       bgcolor: 'background.paper',
                       color: 'primary.main',
                       fontSize: '1.125rem',
-                      fontWeight: 600,
-                      transition: 'all 0.15s',
+                      fontWeight: 700,
+                      transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                      boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
                       '&:hover': {
-                        bgcolor: 'action.hover',
+                        bgcolor: alpha(theme.palette.primary.main, 0.12),
+                        transform: 'translateY(-1px)',
+                        boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
                       },
                       '&:active': {
-                        transform: 'scale(0.95)',
+                        transform: 'scale(0.96)',
                       },
                     }}
                   >
