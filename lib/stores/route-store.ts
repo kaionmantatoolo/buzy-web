@@ -1,8 +1,9 @@
 import { create } from 'zustand';
 import { Route, RouteETA, StopDetail, StopETA, LoadingState, getStopLocation, getStopUniqueId } from '@/lib/types';
-import { fetchRoutes, findNearbyRoutes, searchRoutes, filterRoutesByCompany, calculateDistance } from '@/lib/services/github-data';
+import { fetchRoutes, searchRoutes, filterRoutesByCompany } from '@/lib/services/github-data';
 import { fetchETAsForRoute, fetchETAsForStopOnRoute, fetchKMBETAForStop, filterETAsForRoute } from '@/lib/services/eta-service';
 import { log } from '@/lib/logger';
+import { queryNearbyRoutesFromGridIndex, rebuildNearbyGridIndex } from '@/lib/spatial/nearby-grid-index';
 
 interface ProcessedRoute {
   route: Route;
@@ -81,6 +82,8 @@ export const useRouteStore = create<RouteState>((set, get) => ({
     
     try {
       const routes = await fetchRoutes(forceRefresh);
+      // Build spatial index once so nearby queries are fast.
+      rebuildNearbyGridIndex(routes);
       set({ 
         routes, 
         filteredRoutes: routes,
@@ -170,7 +173,9 @@ export const useRouteStore = create<RouteState>((set, get) => ({
         return;
       }
       
-      const nearby = findNearbyRoutes(routes, userLocation.lat, userLocation.lng, discoveryRange);
+      const { nearbyRoutes: nearby, routeToNearestStop, routeDistances } =
+        queryNearbyRoutesFromGridIndex(userLocation.lat, userLocation.lng, discoveryRange);
+
       log.debug(`[NearbyRoutes] Found ${nearby.length} nearby routes`);
       set({ nearbyRoutes: nearby });
 
@@ -185,32 +190,6 @@ export const useRouteStore = create<RouteState>((set, get) => ({
         log.debug('[NearbyRoutes] Update cancelled after finding routes');
         set({ isLoadingNearbyRoutes: false });
         return;
-      }
-
-      const routeToNearestStop = new Map<string, { stop: StopDetail; distance: number }>();
-      const routeDistances = new Map<string, number>();
-
-      for (const route of nearby) {
-        let nearestStop: StopDetail | null = null;
-        let minDistance = Infinity;
-
-        for (const stop of route.stops) {
-          const stopLoc = getStopLocation(stop);
-          const distance = calculateDistance(
-            userLocation.lat,
-            userLocation.lng,
-            stopLoc.lat,
-            stopLoc.lng
-          );
-          if (distance <= discoveryRange && distance < minDistance) {
-            minDistance = distance;
-            nearestStop = stop;
-          }
-        }
-        if (nearestStop) {
-          routeToNearestStop.set(route.id, { stop: nearestStop, distance: minDistance });
-          routeDistances.set(route.id, minDistance);
-        }
       }
 
       const uniqueStopIds = Array.from(
