@@ -305,22 +305,31 @@ export default function NearbyPage() {
     }
   }, [userLocation, updateNearbyRoutes, isBrowser]);
 
+  // Track if we've already initiated the first update to prevent re-triggers
+  const hasInitiatedUpdate = useRef(false);
+
   useEffect(() => {
     // Only run when we have location AND routes are loaded
-    if (!userLocation || loadingState !== 'success' || routes.length === 0) return;
+    if (!userLocation || loadingState !== 'success' || routes.length === 0) {
+      hasInitiatedUpdate.current = false;
+      return;
+    }
 
     // Avoid kicking off a new update while one is already in progress
     if (isLoadingNearbyRoutes) return;
 
-    // Check if we already have processed nearby routes to avoid infinite loop
-    if (processedNearbyRoutes.length > 0 && !isRefreshing) return;
+    // If we already have processed routes and we're not refreshing, don't re-trigger
+    // Reset the flag only when location/routes change
+    if (processedNearbyRoutes.length > 0 && !isRefreshing) {
+      hasInitiatedUpdate.current = true;
+      return;
+    }
+
+    // Only trigger once per location/routes combination
+    if (hasInitiatedUpdate.current && !isRefreshing) return;
 
     log.debug('[NearbyPage] Effect triggered: updating nearby routes');
-
-    // If we're not refreshing and have cached data, use it temporarily
-    if (!isRefreshing && cachedRoutes.length > 0) {
-      // Use cached data temporarily while fetching fresh data
-    }
+    hasInitiatedUpdate.current = true;
 
     // Add a small delay to prevent blocking the UI on mobile
     const timer = setTimeout(() => {
@@ -343,11 +352,12 @@ export default function NearbyPage() {
       }).catch((error) => {
         console.error('[NearbyPage] Error updating nearby routes:', error);
         setIsRefreshing(false);
+        hasInitiatedUpdate.current = false; // Allow retry on error
       });
     }, 100); // Small delay to allow UI to update
 
     return () => clearTimeout(timer);
-  }, [userLocation, loadingState, routes.length, processedNearbyRoutes.length, isRefreshing, isLoadingNearbyRoutes, isBrowser]); // Removed updateNearbyRoutes from deps - Zustand function is stable
+  }, [userLocation, loadingState, routes.length, isRefreshing, isLoadingNearbyRoutes, isBrowser]); // Removed processedNearbyRoutes.length from deps to prevent re-triggers
 
   if (loadingState === 'loading') {
     return <FullPageLoader message={t('fetchingRouteData')} />;

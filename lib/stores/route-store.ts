@@ -165,6 +165,7 @@ export const useRouteStore = create<RouteState>((set, get) => ({
       // Check if cancelled before starting
       if (abortController.signal.aborted) {
         log.debug('[NearbyRoutes] Update cancelled before start');
+        set({ isLoadingNearbyRoutes: false });
         return;
       }
       
@@ -174,12 +175,14 @@ export const useRouteStore = create<RouteState>((set, get) => ({
 
       if (nearby.length === 0) {
         log.debug('[NearbyRoutes] No nearby routes found, clearing loading');
+        set({ isLoadingNearbyRoutes: false, processedNearbyRoutes: [] });
         return;
       }
       
       // Check cancellation after finding routes
       if (abortController.signal.aborted) {
         log.debug('[NearbyRoutes] Update cancelled after finding routes');
+        set({ isLoadingNearbyRoutes: false });
         return;
       }
 
@@ -240,6 +243,7 @@ export const useRouteStore = create<RouteState>((set, get) => ({
       // Check cancellation after batch fetch
       if (abortController.signal.aborted) {
         log.debug('[NearbyRoutes] Update cancelled after batch fetch');
+        set({ isLoadingNearbyRoutes: false });
         return;
       }
       
