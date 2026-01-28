@@ -64,14 +64,38 @@ export default function NearbyPage() {
   useEffect(() => {
     if (!isBrowser) return;
 
+    const isSameLocation = (lat: number, lng: number) =>
+      userLocation && userLocation.lat === lat && userLocation.lng === lng;
+
+    // URL override for local debugging: /?mockLocation=1&lat=...&lng=...
+    const params = new URLSearchParams(window.location.search);
+    const mockEnabled = params.get('mockLocation');
+    if (mockEnabled === '1' || mockEnabled === 'true') {
+      const latParam = params.get('lat');
+      const lngParam = params.get('lng');
+      const lat = latParam ? Number(latParam) : debugMockLat;
+      const lng = lngParam ? Number(lngParam) : debugMockLng;
+      if (Number.isFinite(lat) && Number.isFinite(lng) && !isSameLocation(lat, lng)) {
+        const location = { lat, lng };
+        log.debug('[NearbyPage][Debug] Using mock location from URL:', location);
+        setUserLocation(location);
+        if (permissionStatus !== 'granted') setPermissionStatus('granted');
+        if (locationError) setLocationError(null);
+        if (permissionDenied) setPermissionDenied(false);
+        return;
+      }
+    }
+
     // Debug mode: force a deterministic location, bypassing browser permission flows.
     if (debugUseMockLocation) {
       const location = { lat: debugMockLat, lng: debugMockLng };
-      log.debug('[NearbyPage][Debug] Using mock location:', location);
-      setUserLocation(location);
-      setPermissionStatus('granted');
-      setLocationError(null);
-      setPermissionDenied(false);
+      if (!isSameLocation(location.lat, location.lng)) {
+        log.debug('[NearbyPage][Debug] Using mock location:', location);
+        setUserLocation(location);
+      }
+      if (permissionStatus !== 'granted') setPermissionStatus('granted');
+      if (locationError) setLocationError(null);
+      if (permissionDenied) setPermissionDenied(false);
       return;
     }
 
@@ -107,23 +131,25 @@ export default function NearbyPage() {
     }
 
     // Check for cached location
-    try {
-      const cachedLocation = localStorage.getItem(USER_LOCATION_CACHE_KEY);
-      const cachedLocationTimestamp = localStorage.getItem(USER_LOCATION_CACHE_TIMESTAMP_KEY);
+    if (!userLocation) {
+      try {
+        const cachedLocation = localStorage.getItem(USER_LOCATION_CACHE_KEY);
+        const cachedLocationTimestamp = localStorage.getItem(USER_LOCATION_CACHE_TIMESTAMP_KEY);
 
-      if (cachedLocation && cachedLocationTimestamp) {
-        const timestamp = parseInt(cachedLocationTimestamp, 10);
-        const now = Date.now();
+        if (cachedLocation && cachedLocationTimestamp) {
+          const timestamp = parseInt(cachedLocationTimestamp, 10);
+          const now = Date.now();
 
-        // Check if location cache is still valid (within 30 minutes)
-        if (now - timestamp < LOCATION_CACHE_DURATION) {
-          const location = JSON.parse(cachedLocation);
-          // Set location without requesting permission if we have recent cached location
-          setUserLocation(location);
+          // Check if location cache is still valid (within 30 minutes)
+          if (now - timestamp < LOCATION_CACHE_DURATION) {
+            const location = JSON.parse(cachedLocation);
+            // Set location without requesting permission if we have recent cached location
+            setUserLocation(location);
+          }
         }
+      } catch (error) {
+        console.error('Error loading cached location:', error);
       }
-    } catch (error) {
-      console.error('Error loading cached location:', error);
     }
 
     // Check permission status

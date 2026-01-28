@@ -247,6 +247,7 @@ export default function SettingsPage() {
                   onClick={() => {
                     setDebugLatInput('22.279370');
                     setDebugLngInput('114.178321');
+                    setDebugUseMockLocation(true);
                     setDebugMockLocation(22.27937, 114.178321);
                   }}
                 >
