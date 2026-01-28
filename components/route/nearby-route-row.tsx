@@ -2,11 +2,11 @@
 
 import Link from 'next/link';
 import { Box, Typography, Stack, Skeleton } from '@mui/material';
-import { Route, StopDetail, RouteETA, getRouteDestination, getStopName, formatETA, isUpcomingETA } from '@/lib/types';
+import StarIcon from '@mui/icons-material/Star';
+import { Route, StopDetail, RouteETA, getRouteDestination, getStopName, minutesUntilETA, isUpcomingETA } from '@/lib/types';
 import { CompanyBadge } from '@/components/ui';
-import { FavoriteButton } from '@/components/ui/favorite-button';
 import { useTranslation } from '@/lib/i18n';
-import { useSettingsStore } from '@/lib/stores';
+import { useFavoritesStore, useSettingsStore } from '@/lib/stores';
 
 interface NearbyRouteRowProps {
   route: Route;
@@ -18,14 +18,13 @@ interface NearbyRouteRowProps {
 export function NearbyRouteRow({ route, nearestStop, etas, distance }: NearbyRouteRowProps) {
   const { t, locale } = useTranslation();
   const useCTBInfo = useSettingsStore(state => state.useCTBInfoForJointRoutes);
+  const isFavorite = useFavoritesStore((s) => s.isFavorite(route));
   const destination = getRouteDestination(route, locale, useCTBInfo);
   const stopName = getStopName(nearestStop, locale, useCTBInfo);
 
-  // Get the first displayable ETA (avoid N/A / departed)
+  // iOS-style: show minutes only (Arriving -> 0, never show Departed)
   const firstETA = etas.find((e) => isUpcomingETA(e.eta)) ?? null;
-  const etaText = firstETA?.eta 
-    ? formatETA(firstETA.eta, locale)
-    : null;
+  const etaMinutes = minutesUntilETA(firstETA?.eta ?? null);
 
   const distanceText = distance < 1000
     ? `${Math.round(distance)}m`
@@ -66,7 +65,7 @@ export function NearbyRouteRow({ route, nearestStop, etas, distance }: NearbyRou
 
       {/* Destination + stop name + badges */}
       <Box sx={{ flex: 1, minWidth: 0 }}>
-        <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" sx={{ mb: 0.25 }}>
+        <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" sx={{ mb: 0.25, minWidth: 0 }}>
           <Typography
             variant="bodyMedium"
             sx={{
@@ -75,11 +74,15 @@ export function NearbyRouteRow({ route, nearestStop, etas, distance }: NearbyRou
               textOverflow: 'ellipsis',
               whiteSpace: 'nowrap',
               color: 'text.primary',
+              minWidth: 0,
             }}
           >
             {t('to')} {destination}
           </Typography>
           <CompanyBadge company={route.company} size="small" />
+          {isFavorite && (
+            <StarIcon sx={{ fontSize: 16, color: 'warning.main', ml: 0.25 }} />
+          )}
           {route.serviceType !== '1' && (
             <Typography
               component="span"
@@ -97,17 +100,17 @@ export function NearbyRouteRow({ route, nearestStop, etas, distance }: NearbyRou
             </Typography>
           )}
         </Stack>
-        <Typography variant="bodySmall" color="text.secondary" sx={{ mb: 0.25 }}>
+        <Typography variant="bodySmall" color="text.secondary" sx={{ mb: 0.25 }} noWrap>
           {stopName}
         </Typography>
-        <Typography variant="bodySmall" color="text.secondary">
+        <Typography variant="bodySmall" color="text.secondary" noWrap>
           {distanceText}
         </Typography>
       </Box>
 
-      {/* ETA display - matches iOS */}
-      <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 70, flexShrink: 0 }}>
-        {etaText ? (
+      {/* ETA display - iOS-style minutes only */}
+      <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', width: 72, flexShrink: 0 }}>
+        {etaMinutes != null ? (
           <>
             <Typography
               variant="titleLarge"
@@ -115,12 +118,13 @@ export function NearbyRouteRow({ route, nearestStop, etas, distance }: NearbyRou
                 fontWeight: 700,
                 fontSize: '1.25rem',
                 color: 'text.primary',
+                lineHeight: 1.1,
               }}
             >
-              {etaText}
+              {etaMinutes}
             </Typography>
             <Typography variant="bodySmall" color="text.secondary">
-              {t('min')}
+              {locale.startsWith('zh') ? '分鐘' : 'min'}
             </Typography>
           </>
         ) : (
@@ -136,8 +140,6 @@ export function NearbyRouteRow({ route, nearestStop, etas, distance }: NearbyRou
           </Typography>
         )}
       </Box>
-
-      <FavoriteButton route={route} size="small" />
     </Box>
   );
 }

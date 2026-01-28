@@ -110,6 +110,22 @@ export function isUpcomingETA(etaString: string | null): etaString is string {
   return t - Date.now() >= 0;
 }
 
+/**
+ * Minutes until ETA for list displays.
+ * - Returns null if not parseable or already past.
+ * - Returns 0 for "arriving" (<= 1 minute).
+ */
+export function minutesUntilETA(etaString: string | null): number | null {
+  if (!etaString) return null;
+  const etaDate = new Date(etaString);
+  const t = etaDate.getTime();
+  if (!Number.isFinite(t)) return null;
+  const diffMs = t - Date.now();
+  if (diffMs < 0) return null;
+  const minutes = Math.floor(diffMs / 60000);
+  return minutes <= 1 ? 0 : minutes;
+}
+
 export function getETARemark(eta: StopETA | RouteETA, locale: string): string {
   const isChineseLanguage = locale.startsWith('zh');
   return (isChineseLanguage ? eta.rmk_tc : eta.rmk_en) || '';
