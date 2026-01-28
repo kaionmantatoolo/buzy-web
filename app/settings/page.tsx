@@ -44,16 +44,28 @@ export default function SettingsPage() {
     setLocale,
   } = useSettingsStore();
   const { clearAllFavorites, favorites } = useFavoritesStore();
-  const loadRoutes = useRouteStore(state => state.loadRoutes);
+  const { loadRoutes, loadingState, lastRoutesUpdatedAt } = useRouteStore((state) => ({
+    loadRoutes: state.loadRoutes,
+    loadingState: state.loadingState,
+    lastRoutesUpdatedAt: state.lastRoutesUpdatedAt,
+  }));
 
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [showRemoveFavConfirm, setShowRemoveFavConfirm] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
 
-  const lastUpdate = getLastUpdateTime();
-  const lastUpdateStr = lastUpdate
-    ? lastUpdate.toLocaleDateString() + ' ' + lastUpdate.toLocaleTimeString()
-    : t('never');
+  // Prefer the in-memory "last downloaded" timestamp (reliable for first launch),
+  // then fall back to localStorage timestamp if available.
+  const lastUpdate =
+    lastRoutesUpdatedAt != null
+      ? new Date(lastRoutesUpdatedAt)
+      : getLastUpdateTime();
+  const lastUpdateStr =
+    loadingState === 'loading'
+      ? t('fetchingRouteData')
+      : lastUpdate
+        ? lastUpdate.toLocaleDateString() + ' ' + lastUpdate.toLocaleTimeString()
+        : t('never');
 
   const clearClientSideCaches = () => {
     // Keep these keys in sync with `app/page.tsx` caching.

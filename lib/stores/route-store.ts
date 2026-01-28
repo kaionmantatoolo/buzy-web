@@ -23,6 +23,10 @@ interface RouteState {
   loadingState: LoadingState;
   isLoadingNearbyRoutes: boolean;
   error: string | null;
+
+  // Last time route data was successfully loaded (ms since epoch).
+  // This is used as a reliable "last downloaded" indicator even if localStorage is unavailable.
+  lastRoutesUpdatedAt: number | null;
   
   // Internal: prevent concurrent nearby route updates
   _nearbyUpdateAbortController: AbortController | null;
@@ -66,6 +70,7 @@ export const useRouteStore = create<RouteState>((set, get) => ({
   loadingState: 'idle',
   isLoadingNearbyRoutes: false,
   error: null,
+  lastRoutesUpdatedAt: null,
   _nearbyUpdateAbortController: null,
   searchQuery: '',
   filterCompany: 'all',
@@ -87,6 +92,7 @@ export const useRouteStore = create<RouteState>((set, get) => ({
       set({ 
         routes, 
         filteredRoutes: routes,
+        lastRoutesUpdatedAt: Date.now(),
         loadingState: 'success' 
       });
       
