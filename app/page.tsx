@@ -307,74 +307,56 @@ export default function NearbyPage() {
     }
   }, [userLocation, updateNearbyRoutes, isBrowser]);
 
-  // Track if we've already initiated the first update to prevent re-triggers
-  const hasInitiatedUpdate = useRef(false);
+  // Track if we've already fetched nearby routes for this location/routes combo
+  const hasFetchedNearbyRoutes = useRef(false);
+  const lastLocationRef = useRef<{ lat: number; lng: number } | null>(null);
 
+  // iOS-style: Explicitly fetch nearby routes when location is available and routes are loaded
+  // This matches iOS's fetchNearbyRoutesIfNeeded() pattern
   useEffect(() => {
-    // Debug logging to understand what's happening
-    log.debug('[NearbyPage] Effect check:', {
-      hasUserLocation: !!userLocation,
-      loadingState,
-      routesCount: routes.length,
-      isLoadingNearbyRoutes,
-      processedCount: processedNearbyRoutes.length,
-      isRefreshing,
-    });
-
-    // Only run when we have location AND routes are loaded
-    if (!userLocation) {
-      log.debug('[NearbyPage] Waiting for user location');
-      hasInitiatedUpdate.current = false;
+    // Only proceed if we have location AND routes are loaded
+    if (!userLocation || loadingState !== 'success' || routes.length === 0) {
+      // Reset flag if location/routes become unavailable
+      if (!userLocation || loadingState !== 'success') {
+        hasFetchedNearbyRoutes.current = false;
+        lastLocationRef.current = null;
+      }
       return;
     }
 
-    if (loadingState !== 'success') {
-      log.debug('[NearbyPage] Waiting for routes to load, current state:', loadingState);
-      hasInitiatedUpdate.current = false;
+    // Check if location changed (need to re-fetch)
+    const locationChanged = 
+      !lastLocationRef.current ||
+      lastLocationRef.current.lat !== userLocation.lat ||
+      lastLocationRef.current.lng !== userLocation.lng;
+
+    // If we already fetched for this location and have results, don't re-fetch
+    if (hasFetchedNearbyRoutes.current && !locationChanged && processedNearbyRoutes.length > 0) {
       return;
     }
 
-    if (routes.length === 0) {
-      log.debug('[NearbyPage] No routes available yet');
-      hasInitiatedUpdate.current = false;
-      return;
-    }
-
-    // Avoid kicking off a new update while one is already in progress
+    // Don't start a new fetch if one is already in progress
     if (isLoadingNearbyRoutes) {
-      log.debug('[NearbyPage] Update already in progress, skipping');
       return;
     }
 
-    // If we already have processed routes and we're not refreshing, don't re-trigger
-    // Reset the flag only when location/routes change
-    if (processedNearbyRoutes.length > 0 && !isRefreshing) {
-      log.debug('[NearbyPage] Already have processed routes, skipping');
-      hasInitiatedUpdate.current = true;
-      return;
-    }
+    // iOS pattern: fetchNearbyRoutesIfNeeded() - only fetch if we don't have routes yet
+    if (processedNearbyRoutes.length === 0 || locationChanged) {
+      console.log('[NearbyPage] Fetching nearby routes (iOS-style)', {
+        location: userLocation,
+        routesCount: routes.length,
+        locationChanged,
+      });
 
-    // Only trigger once per location/routes combination
-    if (hasInitiatedUpdate.current && !isRefreshing) {
-      log.debug('[NearbyPage] Already initiated update, skipping');
-      return;
-    }
+      hasFetchedNearbyRoutes.current = true;
+      lastLocationRef.current = { ...userLocation };
 
-    log.debug('[NearbyPage] Effect triggered: updating nearby routes', {
-      location: userLocation,
-      routesCount: routes.length,
-    });
-    hasInitiatedUpdate.current = true;
-
-    // Add a small delay to prevent blocking the UI on mobile
-    const timer = setTimeout(() => {
-      log.debug('[NearbyPage] Calling updateNearbyRoutes');
+      // Call updateNearbyRoutes directly (like iOS calls fetchNearbyRoutes)
       updateNearbyRoutes().then(() => {
-        log.debug('[NearbyPage] updateNearbyRoutes completed successfully');
+        console.log('[NearbyPage] Nearby routes fetch completed');
         // Save to cache after successful update
         if (isBrowser) {
           try {
-            // Get fresh data from store after update
             const freshProcessedRoutes = useRouteStore.getState().processedNearbyRoutes;
             if (freshProcessedRoutes.length > 0) {
               sessionStorage.setItem(CACHE_KEY, JSON.stringify(freshProcessedRoutes));
@@ -387,14 +369,12 @@ export default function NearbyPage() {
         }
         setIsRefreshing(false);
       }).catch((error) => {
-        console.error('[NearbyPage] Error updating nearby routes:', error);
+        console.error('[NearbyPage] Error fetching nearby routes:', error);
         setIsRefreshing(false);
-        hasInitiatedUpdate.current = false; // Allow retry on error
+        hasFetchedNearbyRoutes.current = false; // Allow retry on error
       });
-    }, 100); // Small delay to allow UI to update
-
-    return () => clearTimeout(timer);
-  }, [userLocation, loadingState, routes.length, isRefreshing, isLoadingNearbyRoutes, isBrowser]); // Removed processedNearbyRoutes.length from deps to prevent re-triggers
+    }
+  }, [userLocation, loadingState, routes.length, processedNearbyRoutes.length, isLoadingNearbyRoutes, isBrowser, updateNearbyRoutes]);
 
   if (loadingState === 'loading') {
     return <FullPageLoader message={t('fetchingRouteData')} />;
