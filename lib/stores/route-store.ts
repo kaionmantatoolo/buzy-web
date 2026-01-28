@@ -292,7 +292,7 @@ export const useRouteStore = create<RouteState>((set, get) => ({
 
         let routeETAs: RouteETA[] = [];
         
-        // STEP 1: Get KMB ETAs (if route uses KMB)
+        // STEP 1: Get KMB ETAs (if route uses KMB) and show immediately if available (iOS-style incremental display)
         if (route.company === 'KMB' || route.company === 'Both') {
           const kmbETAs = kmbEtaCache.get(nearestStop.id) ?? [];
           const filtered = filterETAsForRoute(route, kmbETAs);
@@ -301,34 +301,20 @@ export const useRouteStore = create<RouteState>((set, get) => ({
           );
         }
 
-        // STEP 2: Fetch CTB ETAs synchronously for CTB/Joint routes (like iOS)
-        // This ensures we only show routes that actually have ETAs available
-        if ((route.company === 'CTB' || route.company === 'Both') && !abortController.signal.aborted) {
-          try {
-            const ctbETAs = await fetchETAsForStopOnRoute(route, {
-              ...nearestStop,
-              id: nearestStop.ctbStopId ?? nearestStop.id,
-            });
-            routeETAs.push(...ctbETAs);
-          } catch (e) {
-            if (abortController.signal.aborted) {
-              log.debug(`[NearbyRoutes] CTB fetch cancelled for ${route.routeNumber}`);
-            } else {
-              console.warn(`[NearbyRoutes] CTB ETAs for ${route.routeNumber}:`, e);
-            }
-          }
-        }
+        const sortByEtaTime = (arr: RouteETA[]) => {
+          arr.sort((a, b) => {
+            if (!a.eta) return 1;
+            if (!b.eta) return -1;
+            return new Date(a.eta).getTime() - new Date(b.eta).getTime();
+          });
+        };
 
-        // Sort all ETAs by time (iOS: routeETAs.sort by date)
-        routeETAs.sort((a, b) => {
-          if (!a.eta) return 1;
-          if (!b.eta) return -1;
-          return new Date(a.eta).getTime() - new Date(b.eta).getTime();
-        });
+        // If we already have valid KMB ETAs, show the route now (incremental like iOS)
+        sortByEtaTime(routeETAs);
+        const hadAnyETAsInitially = routeETAs.length > 0;
+        let hasShownRoute = false;
 
-        // iOS logic: Only show routes that have valid ETAs (line 451: if !routeETAs.isEmpty)
-        // This ensures we only display routes with available ETAs, not just routes within range
-        if (routeETAs.length > 0) {
+        if (hadAnyETAsInitially) {
           const current = get().processedNearbyRoutes;
           set({
             processedNearbyRoutes: [
@@ -336,11 +322,68 @@ export const useRouteStore = create<RouteState>((set, get) => ({
               { route, nearestStop, etas: routeETAs, distance },
             ],
           });
+          hasShownRoute = true;
           log.debug(`[NearbyRoutes] Added route ${route.routeNumber} with ${routeETAs.length} ETAs (${current.length + 1} total)`);
-          // Small delay for smoother incremental display (like iOS 0.08s)
           await new Promise((resolve) => setTimeout(resolve, 80));
-        } else {
-          log.debug(`[NearbyRoutes] Skipping route ${route.routeNumber} - no valid ETAs found`);
+        }
+
+        // STEP 2: Fetch CTB ETAs
+        // - If route already displayed (has KMB ETAs), fetch CTB in background and merge when done (fast UX)
+        // - If route not displayed yet (CTB-only or no KMB ETAs), await CTB and only display if ETAs exist (strict iOS rule)
+        if ((route.company === 'CTB' || route.company === 'Both') && !abortController.signal.aborted) {
+          const stopForCTB: StopDetail = {
+            ...nearestStop,
+            id: nearestStop.ctbStopId ?? nearestStop.id,
+          };
+
+          const ctbPromise = fetchETAsForStopOnRoute(route, stopForCTB);
+
+          if (hasShownRoute) {
+            ctbPromise
+              .then((ctbETAs) => {
+                if (abortController.signal.aborted) return;
+                if (ctbETAs.length === 0) return;
+
+                const current = get().processedNearbyRoutes;
+                const routeIndex = current.findIndex((r) => r.route.id === route.id);
+                if (routeIndex === -1) return;
+
+                const existingETAs = current[routeIndex].etas;
+                const merged = [...existingETAs, ...ctbETAs];
+                sortByEtaTime(merged);
+
+                const updated = [...current];
+                updated[routeIndex] = { ...updated[routeIndex], etas: merged };
+                set({ processedNearbyRoutes: updated });
+              })
+              .catch((e) => {
+                if (!abortController.signal.aborted) {
+                  console.warn(`[NearbyRoutes] CTB ETAs for ${route.routeNumber}:`, e);
+                }
+              });
+          } else {
+            try {
+              const ctbETAs = await ctbPromise;
+              routeETAs.push(...ctbETAs);
+              sortByEtaTime(routeETAs);
+
+              if (routeETAs.length > 0) {
+                const current = get().processedNearbyRoutes;
+                set({
+                  processedNearbyRoutes: [
+                    ...current,
+                    { route, nearestStop, etas: routeETAs, distance },
+                  ],
+                });
+                log.debug(`[NearbyRoutes] Added route ${route.routeNumber} with ${routeETAs.length} ETAs (${current.length + 1} total)`);
+                await new Promise((resolve) => setTimeout(resolve, 80));
+              }
+            } catch (e) {
+              if (!abortController.signal.aborted) {
+                console.warn(`[NearbyRoutes] CTB ETAs for ${route.routeNumber}:`, e);
+              }
+            }
+          }
         }
       }
       

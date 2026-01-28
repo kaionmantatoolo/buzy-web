@@ -570,7 +570,13 @@ export default function NearbyPage() {
                   : '0 1px 3px rgba(0,0,0,0.2)',
             }}
           >
-            {(isLoadingNearbyRoutes && !isRefreshing) || (isRefreshing && cachedRoutes.length === 0) ? (
+            {/*
+              iOS behavior: show skeleton only until the first route is available.
+              Once we have at least 1 processed route (or cached routes during refresh),
+              keep showing the list while background fetching continues.
+            */}
+            {(isLoadingNearbyRoutes && !isRefreshing && processedNearbyRoutes.length === 0) ||
+            (isRefreshing && cachedRoutes.length === 0 && processedNearbyRoutes.length === 0) ? (
               <>
                 {[...Array(5)].map((_, i) => (
                   <Box key={i}>
