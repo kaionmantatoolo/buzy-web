@@ -193,6 +193,7 @@ export default function NearbyPage() {
     const watchdog = window.setTimeout(() => {
       if (finished) return;
       finished = true;
+      console.warn('[Location] Watchdog triggered - location request timed out');
       setIsRequestingLocation(false);
       setLocationError('Location request is taking too long. Please try again.');
     }, 12_000);
@@ -351,30 +352,41 @@ export default function NearbyPage() {
       hasFetchedNearbyRoutes.current = true;
       lastLocationRef.current = { ...userLocation };
 
+      // Add timeout guard to prevent infinite hanging
+      const fetchTimeout = setTimeout(() => {
+        console.error('[NearbyPage] updateNearbyRoutes timeout - taking too long');
+        setIsRefreshing(false);
+        hasFetchedNearbyRoutes.current = false; // Allow retry
+      }, 60_000); // 60 second max
+
       // Call updateNearbyRoutes directly (like iOS calls fetchNearbyRoutes)
-      updateNearbyRoutes().then(() => {
-        console.log('[NearbyPage] Nearby routes fetch completed');
-        // Save to cache after successful update
-        if (isBrowser) {
-          try {
-            const freshProcessedRoutes = useRouteStore.getState().processedNearbyRoutes;
-            if (freshProcessedRoutes.length > 0) {
-              sessionStorage.setItem(CACHE_KEY, JSON.stringify(freshProcessedRoutes));
-              sessionStorage.setItem(CACHE_TIMESTAMP_KEY, Date.now().toString());
-              setLastRefreshTime(new Date().toLocaleTimeString());
+      updateNearbyRoutes()
+        .then(() => {
+          clearTimeout(fetchTimeout);
+          console.log('[NearbyPage] Nearby routes fetch completed');
+          // Save to cache after successful update
+          if (isBrowser) {
+            try {
+              const freshProcessedRoutes = useRouteStore.getState().processedNearbyRoutes;
+              if (freshProcessedRoutes.length > 0) {
+                sessionStorage.setItem(CACHE_KEY, JSON.stringify(freshProcessedRoutes));
+                sessionStorage.setItem(CACHE_TIMESTAMP_KEY, Date.now().toString());
+                setLastRefreshTime(new Date().toLocaleTimeString());
+              }
+            } catch (error) {
+              console.error('Error saving to cache:', error);
             }
-          } catch (error) {
-            console.error('Error saving to cache:', error);
           }
-        }
-        setIsRefreshing(false);
-      }).catch((error) => {
-        console.error('[NearbyPage] Error fetching nearby routes:', error);
-        setIsRefreshing(false);
-        hasFetchedNearbyRoutes.current = false; // Allow retry on error
-      });
+          setIsRefreshing(false);
+        })
+        .catch((error) => {
+          clearTimeout(fetchTimeout);
+          console.error('[NearbyPage] Error fetching nearby routes:', error);
+          setIsRefreshing(false);
+          hasFetchedNearbyRoutes.current = false; // Allow retry on error
+        });
     }
-  }, [userLocation, loadingState, routes.length, processedNearbyRoutes.length, isLoadingNearbyRoutes, isBrowser, updateNearbyRoutes]);
+  }, [userLocation, loadingState, routes.length, processedNearbyRoutes.length, isLoadingNearbyRoutes, isBrowser]);
 
   if (loadingState === 'loading') {
     return <FullPageLoader message={t('fetchingRouteData')} />;

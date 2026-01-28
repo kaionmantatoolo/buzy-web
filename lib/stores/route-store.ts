@@ -163,11 +163,21 @@ export const useRouteStore = create<RouteState>((set, get) => ({
 
     set({ isLoadingNearbyRoutes: true, processedNearbyRoutes: [] });
 
+    // Safety timeout: prevent infinite hanging (60 seconds max)
+    const safetyTimeout = setTimeout(() => {
+      if (!abortController.signal.aborted) {
+        console.error('[NearbyRoutes] Safety timeout - updateNearbyRoutes taking too long, aborting');
+        abortController.abort();
+        set({ isLoadingNearbyRoutes: false, processedNearbyRoutes: [] });
+      }
+    }, 60_000);
+
     try {
       log.debug(`[NearbyRoutes] Starting updateNearbyRoutes: ${routes.length} routes, range ${discoveryRange}m`);
       
       // Check if cancelled before starting
       if (abortController.signal.aborted) {
+        clearTimeout(safetyTimeout);
         log.debug('[NearbyRoutes] Update cancelled before start');
         set({ isLoadingNearbyRoutes: false });
         return;
@@ -389,6 +399,7 @@ export const useRouteStore = create<RouteState>((set, get) => ({
         set({ processedNearbyRoutes: [] });
       }
     } finally {
+      clearTimeout(safetyTimeout);
       // Clear abort controller and loading state
       const currentController = get()._nearbyUpdateAbortController;
       if (currentController === abortController) {
