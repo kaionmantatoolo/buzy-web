@@ -90,8 +90,9 @@ export function formatETA(etaString: string | null, locale: string): string {
     return locale.startsWith('zh') ? '已經走咗' : 'Departed';
   }
 
-  if (diffMinutes === 0) {
-    return locale.startsWith('zh') ? '就嚟到喇' : 'Arriving';
+  // iOS-style: avoid "Arriving" wording, use 0 min (<= 1 minute)
+  if (diffMinutes <= 1) {
+    return locale.startsWith('zh') ? '0 分鐘' : '0 min';
   }
 
   return locale.startsWith('zh') ? `${diffMinutes} 分鐘` : `${diffMinutes} min`;

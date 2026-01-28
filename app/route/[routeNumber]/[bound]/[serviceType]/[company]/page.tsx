@@ -47,6 +47,8 @@ export default function RouteDetailPage() {
   const [showMap, setShowMap] = useState(true);
   const refreshIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const isRefreshingRef = useRef(false);
+  const hasAutoExpandedNearestStopRef = useRef(false);
+  const stopListRef = useRef<HTMLDivElement | null>(null);
 
   // Parse route params
   const routeNumber = params.routeNumber as string;
@@ -95,7 +97,18 @@ export default function RouteDetailPage() {
 
   // Auto-scroll to nearest stop and expand it with ETA fetch
   useEffect(() => {
-    if (currentRoute && userLocation && currentRoute.stops.length > 0 && !expandedStopId) {
+    // Only auto-expand once per page entry.
+    // Otherwise, collapsing a stop would immediately trigger auto-expand again (feels "not collapsable").
+    if (
+      hasAutoExpandedNearestStopRef.current ||
+      !currentRoute ||
+      !userLocation ||
+      currentRoute.stops.length === 0 ||
+      expandedStopId
+    ) {
+      return;
+    }
+
       let nearestStop = currentRoute.stops[0];
       let minDistance = Infinity;
 
@@ -113,33 +126,31 @@ export default function RouteDetailPage() {
       const nearestStopId = getStopUniqueId(nearestStop);
 
       // Auto-expand the nearest stop and fetch its ETAs
+      hasAutoExpandedNearestStopRef.current = true;
       setExpandedStopId(nearestStopId);
       fetchStopETAs(nearestStopId);
 
       // Auto-scroll to the nearest stop after a short delay to ensure DOM is updated
-      // Account for fixed header and map height
       const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 
       setTimeout(() => {
         const element = document.getElementById(`stop-${nearestStopId}`);
-        if (element) {
-          // Use instant scroll on mobile for better performance
-          const behavior = isMobile ? 'instant' : 'smooth';
+        const container = stopListRef.current;
+        if (!element || !container) return;
 
-          element.scrollIntoView({ behavior, block: 'nearest' });
+        // Scroll the stop list container (not the window) so the sticky header/back button stays visible.
+        const behavior = isMobile ? 'auto' : 'smooth';
+        const elRect = element.getBoundingClientRect();
+        const containerRect = container.getBoundingClientRect();
+        const topWithinContainer = elRect.top - containerRect.top + container.scrollTop;
+        const padding = 8;
 
-          // Adjust scroll position to account for fixed elements
-          const headerHeight = 56; // Approximate header height
-          const mapHeight = showMap ? window.innerHeight * 0.35 : 0; // 35% of viewport height
-          const totalOffset = headerHeight + mapHeight + 16; // Add some padding
-
-          if (window.scrollY > totalOffset) {
-            window.scrollBy(0, -totalOffset);
-          }
-        }
+        container.scrollTo({
+          top: Math.max(0, topWithinContainer - padding),
+          behavior,
+        });
       }, isMobile ? 50 : 100); // Faster delay on mobile
-    }
-  }, [currentRoute, userLocation, expandedStopId, setExpandedStopId, fetchStopETAs, showMap]);
+  }, [currentRoute, userLocation, expandedStopId, setExpandedStopId, fetchStopETAs]);
 
   // Group ETAs by stop sequence
   const etasByStop = useMemo(() => {
@@ -279,7 +290,10 @@ export default function RouteDetailPage() {
       )}
 
       {/* Scrollable stop list - takes remaining space */}
-      <Box sx={{ flex: 1, overflow: 'auto', minHeight: 0, pt: showMap ? '35vh' : 0 }}>
+      <Box
+        ref={stopListRef}
+        sx={{ flex: 1, overflow: 'auto', minHeight: 0, pt: showMap ? '35vh' : 0 }}
+      >
         <Box sx={{ px: 2, py: 1, mt: showMap ? '-35vh' : 0 }}>
           {currentRoute.stops.map((stop, index) => {
             const uniqueId = getStopUniqueId(stop);

@@ -1,7 +1,7 @@
 'use client';
 
 import { Box, Typography, Chip, Stack } from '@mui/material';
-import { RouteETA, formatETA, getETARemark } from '@/lib/types';
+import { RouteETA, formatETA, getETARemark, isUpcomingETA } from '@/lib/types';
 import { useTranslation } from '@/lib/i18n';
 import { CompanyBadge } from '@/components/ui/company-badge';
 import type { BusCompany } from '@/lib/types';
@@ -67,9 +67,14 @@ interface ETAListProps {
   maxItems?: number;
 }
 
-// Filter out ETAs with no valid eta time (null) so we don't show "N/A" slots
+// Filter out ETAs that shouldn't be displayed:
+// - null/empty ETA
+// - departed (past) ETA
 function filterValidETAs(etas: RouteETA[]): RouteETA[] {
-  return etas.filter((e): e is RouteETA & { eta: string } => e.eta != null && e.eta !== '');
+  return etas.filter((e): e is RouteETA & { eta: string } => {
+    if (e.eta == null || e.eta === '') return false;
+    return isUpcomingETA(e.eta);
+  });
 }
 
 export function ETAList({ etas, maxItems = 3 }: ETAListProps) {
