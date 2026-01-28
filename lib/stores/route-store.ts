@@ -211,9 +211,12 @@ export const useRouteStore = create<RouteState>((set, get) => ({
       // iOS-style: prefer a *small* lazy list of nearest routes/stops.
       // We cap how many routes and unique stops we fetch ETAs for to avoid
       // hammering the KMB API and freezing mobile browsers.
-      // MAX_VISIBLE_ROUTES is tuned to roughly "one screenful + a small buffer".
-      const MAX_VISIBLE_ROUTES = 15;
-      const MAX_UNIQUE_STOPS_FOR_KMB = 20;
+      // On iOS Safari we are extra conservative.
+      const isIOS =
+        typeof navigator !== 'undefined' &&
+        /iPhone|iPad|iPod/.test(navigator.userAgent || '');
+      const MAX_VISIBLE_ROUTES = isIOS ? 8 : 15;
+      const MAX_UNIQUE_STOPS_FOR_KMB = isIOS ? 8 : 20;
 
       let favoritesStore: { isFavorite: (r: Route) => boolean } | null = null;
       try {
@@ -356,8 +359,11 @@ export const useRouteStore = create<RouteState>((set, get) => ({
             set({ isLoadingNearbyRoutes: false });
           }
           hasShownRoute = true;
-          log.debug(`[NearbyRoutes] Added route ${route.routeNumber} with ${routeETAs.length} ETAs (${current.length + 1} total)`);
-          await new Promise((resolve) => setTimeout(resolve, 80));
+          log.debug(
+            `[NearbyRoutes] Added route ${route.routeNumber} with ${routeETAs.length} ETAs (${current.length + 1} total)`
+          );
+          // Short yield to keep UI responsive; on iOS we keep this minimal.
+          await new Promise((resolve) => setTimeout(resolve, isIOS ? 0 : 40));
         }
 
         // STEP 2 (disabled on Nearby): CTB ETAs
