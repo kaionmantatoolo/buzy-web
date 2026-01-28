@@ -211,8 +211,10 @@ export const useRouteStore = create<RouteState>((set, get) => ({
       // iOS-style: prefer a *small* lazy list of nearest routes/stops.
       // We cap how many routes and unique stops we fetch ETAs for to avoid
       // hammering the KMB API and freezing mobile browsers.
-      const MAX_NEARBY_ROUTES = 60;
-      const MAX_UNIQUE_STOPS_FOR_KMB = 40;
+      // On constrained devices (mobile Safari), even 60 routes / 40 stops can be heavy,
+      // so we keep this intentionally tight.
+      const MAX_NEARBY_ROUTES = 30;
+      const MAX_UNIQUE_STOPS_FOR_KMB = 20;
 
       let favoritesStore: { isFavorite: (r: Route) => boolean } | null = null;
       try {
@@ -256,7 +258,8 @@ export const useRouteStore = create<RouteState>((set, get) => ({
       const kmbEtaCache = new Map<string, StopETA[]>();
       const etaResults: Array<{ stopId: string; stopETAs: StopETA[] }> = [];
 
-      const CONCURRENCY = 10;
+      // Lower concurrency on mobile to reduce main-thread pressure.
+      const CONCURRENCY = 5;
       for (let i = 0; i < limitedStopIds.length; i += CONCURRENCY) {
         if (abortController.signal.aborted) break;
 
