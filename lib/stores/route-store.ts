@@ -253,41 +253,31 @@ export const useRouteStore = create<RouteState>((set, get) => ({
           `(from ${routesForETAs.length} nearest routes, total nearby=${nearby.length})`
       );
 
-      // Fetch KMB ETAs with limited concurrency (mobile-safe).
+      // Fetch KMB ETAs **sequentially in distance order** (no concurrency),
+      // matching the iOS lazy list behavior more closely and reducing the
+      // chance of main-thread contention on mobile Safari.
       const kmbEtaCache = new Map<string, StopETA[]>();
       const etaResults: Array<{ stopId: string; stopETAs: StopETA[] }> = [];
 
-      // Lower concurrency on mobile to reduce main-thread pressure.
-      const CONCURRENCY = 5;
-      for (let i = 0; i < limitedStopIds.length; i += CONCURRENCY) {
+      for (const stopId of limitedStopIds) {
         if (abortController.signal.aborted) break;
 
-        const batch = limitedStopIds.slice(i, i + CONCURRENCY);
-        const batchResults = await Promise.all(
-          batch.map(async (stopId) => {
-            if (abortController.signal.aborted) {
-              return { stopId, stopETAs: [] };
-            }
-            try {
-              const stopETAs = await fetchKMBETAForStop(stopId);
-              return { stopId, stopETAs };
-            } catch (error) {
-              if (abortController.signal.aborted) {
-                log.debug(`[NearbyRoutes] Fetch cancelled for stop ${stopId}`);
-              } else {
-                console.warn(
-                  `[NearbyRoutes] Failed to fetch ETAs for stop ${stopId}:`,
-                  error
-                );
-              }
-              return { stopId, stopETAs: [] };
-            }
-          })
-        );
+        try {
+          const stopETAs = await fetchKMBETAForStop(stopId);
+          etaResults.push({ stopId, stopETAs });
+        } catch (error) {
+          if (abortController.signal.aborted) {
+            log.debug(`[NearbyRoutes] Fetch cancelled for stop ${stopId}`);
+          } else {
+            console.warn(
+              `[NearbyRoutes] Failed to fetch ETAs for stop ${stopId}:`,
+              error
+            );
+          }
+          etaResults.push({ stopId, stopETAs: [] });
+        }
 
-        etaResults.push(...batchResults);
-
-        // Yield to keep UI responsive on mobile browsers.
+        // Yield briefly between stops to keep UI responsive.
         await new Promise((resolve) => setTimeout(resolve, 0));
       }
 
