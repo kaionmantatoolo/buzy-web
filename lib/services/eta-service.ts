@@ -1,4 +1,4 @@
-import { Route, StopDetail, RouteETA, StopETA, CTBETAResponse, BusCompany } from '@/lib/types';
+import { Route, StopDetail, RouteETA, StopETA, CTBETAResponse, BusCompany, isUpcomingETA } from '@/lib/types';
 
 // API endpoints - we'll use our proxy routes to avoid CORS
 const KMB_API_BASE = '/api/eta/kmb';
@@ -183,8 +183,8 @@ function filterETAsForRoute(route: Route, allETAs: StopETA[]): StopETA[] {
     
     return routeMatches && directionMatches && serviceTypeMatches;
   }).filter((eta): eta is StopETA & { eta: string } => {
-    // Only keep ETAs with valid eta time
-    return eta.eta != null && eta.eta !== '';
+    // Only keep ETAs that are displayable on the Nearby list (avoid N/A / departed)
+    return isUpcomingETA(eta.eta);
   });
 }
 

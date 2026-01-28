@@ -97,6 +97,19 @@ export function formatETA(etaString: string | null, locale: string): string {
   return locale.startsWith('zh') ? `${diffMinutes} 分鐘` : `${diffMinutes} min`;
 }
 
+/**
+ * iOS-style validity check for "nearby" list display:
+ * - Must be parseable
+ * - Must be in the future (or arriving now)
+ */
+export function isUpcomingETA(etaString: string | null): etaString is string {
+  if (!etaString) return false;
+  const etaDate = new Date(etaString);
+  const t = etaDate.getTime();
+  if (!Number.isFinite(t)) return false;
+  return t - Date.now() >= 0;
+}
+
 export function getETARemark(eta: StopETA | RouteETA, locale: string): string {
   const isChineseLanguage = locale.startsWith('zh');
   return (isChineseLanguage ? eta.rmk_tc : eta.rmk_en) || '';

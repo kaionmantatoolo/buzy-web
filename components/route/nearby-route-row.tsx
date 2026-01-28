@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { Box, Typography, Stack, Skeleton } from '@mui/material';
-import { Route, StopDetail, RouteETA, getRouteDestination, getStopName, formatETA } from '@/lib/types';
+import { Route, StopDetail, RouteETA, getRouteDestination, getStopName, formatETA, isUpcomingETA } from '@/lib/types';
 import { CompanyBadge } from '@/components/ui';
 import { FavoriteButton } from '@/components/ui/favorite-button';
 import { useTranslation } from '@/lib/i18n';
@@ -21,8 +21,8 @@ export function NearbyRouteRow({ route, nearestStop, etas, distance }: NearbyRou
   const destination = getRouteDestination(route, locale, useCTBInfo);
   const stopName = getStopName(nearestStop, locale, useCTBInfo);
 
-  // Get the first valid ETA
-  const firstETA = etas.length > 0 ? etas[0] : null;
+  // Get the first displayable ETA (avoid N/A / departed)
+  const firstETA = etas.find((e) => isUpcomingETA(e.eta)) ?? null;
   const etaText = firstETA?.eta 
     ? formatETA(firstETA.eta, locale)
     : null;
