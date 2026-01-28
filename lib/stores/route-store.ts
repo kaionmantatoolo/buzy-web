@@ -211,9 +211,8 @@ export const useRouteStore = create<RouteState>((set, get) => ({
       // iOS-style: prefer a *small* lazy list of nearest routes/stops.
       // We cap how many routes and unique stops we fetch ETAs for to avoid
       // hammering the KMB API and freezing mobile browsers.
-      // On constrained devices (mobile Safari), even 60 routes / 40 stops can be heavy,
-      // so we keep this intentionally tight.
-      const MAX_NEARBY_ROUTES = 30;
+      // MAX_VISIBLE_ROUTES is tuned to roughly "one screenful + a small buffer".
+      const MAX_VISIBLE_ROUTES = 15;
       const MAX_UNIQUE_STOPS_FOR_KMB = 20;
 
       let favoritesStore: { isFavorite: (r: Route) => boolean } | null = null;
@@ -239,7 +238,7 @@ export const useRouteStore = create<RouteState>((set, get) => ({
 
       // Only use the closest + favorite-weighted routes when deciding which
       // stops to fetch ETAs for (lazy list behaviour like iOS).
-      const routesForETAs = sortedRoutes.slice(0, MAX_NEARBY_ROUTES);
+      const routesForETAs = sortedRoutes.slice(0, MAX_VISIBLE_ROUTES);
 
       const limitedStopIds = Array.from(
         new Set(
@@ -304,7 +303,7 @@ export const useRouteStore = create<RouteState>((set, get) => ({
       }
       
       // Only process a limited number of routes for the lazy nearby list.
-      const routesToProcess = sortedRoutes.slice(0, MAX_NEARBY_ROUTES);
+      const routesToProcess = routesForETAs;
 
       log.debug(
         `[NearbyRoutes] KMB ETA fetch complete, processing ${routesToProcess.length} routes incrementally`
