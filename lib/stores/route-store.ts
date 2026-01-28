@@ -202,57 +202,11 @@ export const useRouteStore = create<RouteState>((set, get) => ({
         return;
       }
 
-      const uniqueStopIds = Array.from(
-        new Set(Array.from(routeToNearestStop.values()).map((v) => v.stop.id))
-      );
-
-      log.debug(`[NearbyRoutes] Fetching KMB ETAs for ${uniqueStopIds.length} unique stops (parallel)`);
-      
-      // Fetch KMB ETAs with limited concurrency (mobile-safe).
-      // Full Promise.all on many stops can overwhelm mobile browsers and freeze UI.
-      const kmbEtaCache = new Map<string, StopETA[]>();
-      const etaResults: Array<{ stopId: string; stopETAs: StopETA[] }> = [];
-
-      const CONCURRENCY = 10;
-      for (let i = 0; i < uniqueStopIds.length; i += CONCURRENCY) {
-        if (abortController.signal.aborted) break;
-
-        const batch = uniqueStopIds.slice(i, i + CONCURRENCY);
-        const batchResults = await Promise.all(
-          batch.map(async (stopId) => {
-            if (abortController.signal.aborted) {
-              return { stopId, stopETAs: [] };
-            }
-            try {
-              const stopETAs = await fetchKMBETAForStop(stopId);
-              return { stopId, stopETAs };
-            } catch (error) {
-              if (abortController.signal.aborted) {
-                log.debug(`[NearbyRoutes] Fetch cancelled for stop ${stopId}`);
-              } else {
-                console.warn(`[NearbyRoutes] Failed to fetch ETAs for stop ${stopId}:`, error);
-              }
-              return { stopId, stopETAs: [] };
-            }
-          })
-        );
-
-        etaResults.push(...batchResults);
-
-        // Yield to keep UI responsive on mobile browsers.
-        await new Promise((resolve) => setTimeout(resolve, 0));
-      }
-      
-      // Check cancellation after batch fetch
-      if (abortController.signal.aborted) {
-        log.debug('[NearbyRoutes] Update cancelled after batch fetch');
-        set({ isLoadingNearbyRoutes: false });
-        return;
-      }
-      
-      for (const { stopId, stopETAs } of etaResults) {
-        kmbEtaCache.set(stopId, stopETAs);
-      }
+      // iOS-style: prefer a *small* lazy list of nearest routes/stops.
+      // We cap how many routes and unique stops we fetch ETAs for to avoid
+      // hammering the KMB API and freezing mobile browsers.
+      const MAX_NEARBY_ROUTES = 60;
+      const MAX_UNIQUE_STOPS_FOR_KMB = 40;
 
       let favoritesStore: { isFavorite: (r: Route) => boolean } | null = null;
       try {
@@ -274,14 +228,84 @@ export const useRouteStore = create<RouteState>((set, get) => ({
           const d2 = routeDistances.get(r2.id) ?? Infinity;
           return d1 - d2;
         });
+
+      // Only use the closest + favorite-weighted routes when deciding which
+      // stops to fetch ETAs for (lazy list behaviour like iOS).
+      const routesForETAs = sortedRoutes.slice(0, MAX_NEARBY_ROUTES);
+
+      const limitedStopIds = Array.from(
+        new Set(
+          routesForETAs
+            .map((r) => routeToNearestStop.get(r.id)?.stop.id)
+            .filter((id): id is string => Boolean(id))
+        )
+      ).slice(0, MAX_UNIQUE_STOPS_FOR_KMB);
+
+      log.debug(
+        `[NearbyRoutes] Fetching KMB ETAs for ${limitedStopIds.length} unique stops ` +
+          `(from ${routesForETAs.length} nearest routes, total nearby=${nearby.length})`
+      );
+
+      // Fetch KMB ETAs with limited concurrency (mobile-safe).
+      const kmbEtaCache = new Map<string, StopETA[]>();
+      const etaResults: Array<{ stopId: string; stopETAs: StopETA[] }> = [];
+
+      const CONCURRENCY = 10;
+      for (let i = 0; i < limitedStopIds.length; i += CONCURRENCY) {
+        if (abortController.signal.aborted) break;
+
+        const batch = limitedStopIds.slice(i, i + CONCURRENCY);
+        const batchResults = await Promise.all(
+          batch.map(async (stopId) => {
+            if (abortController.signal.aborted) {
+              return { stopId, stopETAs: [] };
+            }
+            try {
+              const stopETAs = await fetchKMBETAForStop(stopId);
+              return { stopId, stopETAs };
+            } catch (error) {
+              if (abortController.signal.aborted) {
+                log.debug(`[NearbyRoutes] Fetch cancelled for stop ${stopId}`);
+              } else {
+                console.warn(
+                  `[NearbyRoutes] Failed to fetch ETAs for stop ${stopId}:`,
+                  error
+                );
+              }
+              return { stopId, stopETAs: [] };
+            }
+          })
+        );
+
+        etaResults.push(...batchResults);
+
+        // Yield to keep UI responsive on mobile browsers.
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      }
+
+      // Check cancellation after batch fetch
+      if (abortController.signal.aborted) {
+        log.debug('[NearbyRoutes] Update cancelled after batch fetch');
+        set({ isLoadingNearbyRoutes: false });
+        return;
+      }
+
+      for (const { stopId, stopETAs } of etaResults) {
+        kmbEtaCache.set(stopId, stopETAs);
+      }
       
-      log.debug(`[NearbyRoutes] KMB ETA fetch complete, processing ${sortedRoutes.length} routes incrementally`);
+      // Only process a limited number of routes for the lazy nearby list.
+      const routesToProcess = sortedRoutes.slice(0, MAX_NEARBY_ROUTES);
+
+      log.debug(
+        `[NearbyRoutes] KMB ETA fetch complete, processing ${routesToProcess.length} routes incrementally`
+      );
 
       // iOS-style incremental display: process routes one-by-one, append as each completes
       // Start with empty list - routes will appear incrementally
       set({ processedNearbyRoutes: [] });
 
-      for (const route of sortedRoutes) {
+      for (const route of routesToProcess) {
         // Check cancellation before processing each route (iOS: if Task.isCancelled { break })
         if (abortController.signal.aborted) {
           log.debug(`[NearbyRoutes] Update cancelled, stopping at route ${route.routeNumber}`);
