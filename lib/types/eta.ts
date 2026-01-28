@@ -87,7 +87,9 @@ export function formatETA(etaString: string | null, locale: string): string {
   const diffMinutes = Math.floor(diffMs / (1000 * 60));
 
   if (diffMinutes < 0) {
-    return locale.startsWith('zh') ? '已經走咗' : 'Departed';
+    // Treat departed ETAs as not displayable; callers should fall back
+    // to the next upcoming ETA. For safety, surface them as N/A.
+    return locale.startsWith('zh') ? '冇車' : 'N/A';
   }
 
   // iOS-style: avoid "Arriving" wording, use 0 min (<= 1 minute)

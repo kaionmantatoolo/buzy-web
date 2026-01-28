@@ -211,7 +211,9 @@ export async function fetchETAsForStopOnRoute(
         .map(eta => ({
           ...eta,
           seq: stop.sequence,
-        }));
+        }))
+        // Only keep upcoming ETAs; once departed, drop them entirely.
+        .filter(eta => isUpcomingETA(eta.eta));
       
       allETAs.push(...filtered);
       break;
@@ -232,7 +234,8 @@ export async function fetchETAsForStopOnRoute(
         .map(eta => ({
           ...eta,
           seq: stop.sequence,
-        }));
+        }))
+        .filter(eta => isUpcomingETA(eta.eta));
       
       allETAs.push(...filtered);
       break;
@@ -253,7 +256,8 @@ export async function fetchETAsForStopOnRoute(
         .map(eta => ({
           ...eta,
           seq: stop.sequence,
-        }));
+        }))
+        .filter(eta => isUpcomingETA(eta.eta));
       
       // Process CTB ETAs
       const ctbFiltered = ctbETAs
@@ -261,7 +265,8 @@ export async function fetchETAsForStopOnRoute(
         .map(eta => ({
           ...eta,
           seq: stop.sequence,
-        }));
+        }))
+        .filter(eta => isUpcomingETA(eta.eta));
       
       allETAs.push(...kmbFiltered, ...ctbFiltered);
       break;
