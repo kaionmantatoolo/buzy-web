@@ -118,11 +118,12 @@ export const useRouteStore = create<RouteState>((set, get) => ({
   },
   
   // Set user location
+  // Note: Don't auto-trigger updateNearbyRoutes here - let the page component's effect handle it
+  // This prevents race conditions when location is set before routes are loaded
   setUserLocation: (location: { lat: number; lng: number } | null) => {
     set({ userLocation: location });
-    if (location) {
-      get().updateNearbyRoutes();
-    }
+    // Removed auto-trigger: let page component effect handle updateNearbyRoutes
+    // This matches iOS behavior where the view explicitly calls fetchNearbyRoutes
   },
   
   // Set discovery range

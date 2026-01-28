@@ -122,11 +122,12 @@ export default function NearbyPage() {
           // Try to get location silently first
           geo.getCurrentPosition(
             (position) => {
-              const location = {
-                lat: position.coords.latitude,
-                lng: position.coords.longitude,
-              };
-              setUserLocation(location);
+          const location = {
+            lat: position.coords.latitude,
+            lng: position.coords.longitude,
+          };
+          log.debug('[NearbyPage] Setting user location from silent fetch:', location);
+          setUserLocation(location);
 
               // Cache the location
               try {
@@ -216,6 +217,7 @@ export default function NearbyPage() {
           lng: position.coords.longitude,
         };
 
+        log.debug('[NearbyPage] Setting user location from user gesture:', location);
         setUserLocation(location);
         setIsRequestingLocation(false);
         setPermissionDenied(false);
@@ -309,31 +311,66 @@ export default function NearbyPage() {
   const hasInitiatedUpdate = useRef(false);
 
   useEffect(() => {
+    // Debug logging to understand what's happening
+    log.debug('[NearbyPage] Effect check:', {
+      hasUserLocation: !!userLocation,
+      loadingState,
+      routesCount: routes.length,
+      isLoadingNearbyRoutes,
+      processedCount: processedNearbyRoutes.length,
+      isRefreshing,
+    });
+
     // Only run when we have location AND routes are loaded
-    if (!userLocation || loadingState !== 'success' || routes.length === 0) {
+    if (!userLocation) {
+      log.debug('[NearbyPage] Waiting for user location');
+      hasInitiatedUpdate.current = false;
+      return;
+    }
+
+    if (loadingState !== 'success') {
+      log.debug('[NearbyPage] Waiting for routes to load, current state:', loadingState);
+      hasInitiatedUpdate.current = false;
+      return;
+    }
+
+    if (routes.length === 0) {
+      log.debug('[NearbyPage] No routes available yet');
       hasInitiatedUpdate.current = false;
       return;
     }
 
     // Avoid kicking off a new update while one is already in progress
-    if (isLoadingNearbyRoutes) return;
+    if (isLoadingNearbyRoutes) {
+      log.debug('[NearbyPage] Update already in progress, skipping');
+      return;
+    }
 
     // If we already have processed routes and we're not refreshing, don't re-trigger
     // Reset the flag only when location/routes change
     if (processedNearbyRoutes.length > 0 && !isRefreshing) {
+      log.debug('[NearbyPage] Already have processed routes, skipping');
       hasInitiatedUpdate.current = true;
       return;
     }
 
     // Only trigger once per location/routes combination
-    if (hasInitiatedUpdate.current && !isRefreshing) return;
+    if (hasInitiatedUpdate.current && !isRefreshing) {
+      log.debug('[NearbyPage] Already initiated update, skipping');
+      return;
+    }
 
-    log.debug('[NearbyPage] Effect triggered: updating nearby routes');
+    log.debug('[NearbyPage] Effect triggered: updating nearby routes', {
+      location: userLocation,
+      routesCount: routes.length,
+    });
     hasInitiatedUpdate.current = true;
 
     // Add a small delay to prevent blocking the UI on mobile
     const timer = setTimeout(() => {
+      log.debug('[NearbyPage] Calling updateNearbyRoutes');
       updateNearbyRoutes().then(() => {
+        log.debug('[NearbyPage] updateNearbyRoutes completed successfully');
         // Save to cache after successful update
         if (isBrowser) {
           try {
