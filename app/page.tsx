@@ -336,8 +336,9 @@ export default function NearbyPage() {
       lastLocationRef.current.lat !== userLocation.lat ||
       lastLocationRef.current.lng !== userLocation.lng;
 
-    // If we already fetched for this location and have results, don't re-fetch
-    if (hasFetchedNearbyRoutes.current && !locationChanged && processedNearbyRoutes.length > 0) {
+    // iOS-style: if we already fetched for this location, don't keep retrying in a loop
+    // (even if the result set is empty due to no upcoming ETAs or transient API issues).
+    if (hasFetchedNearbyRoutes.current && !locationChanged) {
       return;
     }
 
