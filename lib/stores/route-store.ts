@@ -302,9 +302,9 @@ export const useRouteStore = create<RouteState>((set, get) => ({
         `[NearbyRoutes] KMB ETA fetch complete, processing ${routesToProcess.length} routes incrementally`
       );
 
-      // iOS-style incremental display: process routes one-by-one, append as each completes
-      // Start with empty list - routes will appear incrementally
-      set({ processedNearbyRoutes: [] });
+      // Build the list in-memory first to avoid frequent state updates
+      // (helps prevent UI hangs on mobile Safari/Chrome).
+      const nextProcessed: ProcessedRoute[] = [];
 
       for (const route of routesToProcess) {
         // Check cancellation before processing each route (iOS: if Task.isCancelled { break })
@@ -345,25 +345,11 @@ export const useRouteStore = create<RouteState>((set, get) => ({
         let hasShownRoute = false;
 
         if (hadAnyETAsInitially) {
-          const current = get().processedNearbyRoutes;
-          set({
-            processedNearbyRoutes: [
-              ...current,
-              { route, nearestStop, etas: routeETAs, distance },
-            ],
-          });
-          // As soon as we have at least one route with ETAs, clear the "loading nearby"
-          // state so the UI no longer shows a global spinner, even while we continue
-          // to refine the list in the background.
-          if (get().isLoadingNearbyRoutes) {
-            set({ isLoadingNearbyRoutes: false });
-          }
+          nextProcessed.push({ route, nearestStop, etas: routeETAs, distance });
           hasShownRoute = true;
           log.debug(
-            `[NearbyRoutes] Added route ${route.routeNumber} with ${routeETAs.length} ETAs (${current.length + 1} total)`
+            `[NearbyRoutes] Added route ${route.routeNumber} with ${routeETAs.length} ETAs (${nextProcessed.length} total)`
           );
-          // Short yield to keep UI responsive; on iOS we keep this minimal.
-          await new Promise((resolve) => setTimeout(resolve, isIOS ? 0 : 40));
         }
 
         // STEP 2 (disabled on Nearby): CTB ETAs
@@ -373,9 +359,15 @@ export const useRouteStore = create<RouteState>((set, get) => ({
         // available, and full CTB ETAs remain available on the route detail screen.
       }
       
-      // Only log if not cancelled
+      // Commit results once to reduce render churn
       if (!abortController.signal.aborted) {
-        log.debug(`[NearbyRoutes] Finished processing: ${get().processedNearbyRoutes.length} routes with valid ETAs`);
+        set({
+          processedNearbyRoutes: nextProcessed,
+          isLoadingNearbyRoutes: false,
+        });
+        log.debug(
+          `[NearbyRoutes] Finished processing: ${nextProcessed.length} routes with valid ETAs`
+        );
       }
     } catch (error) {
       if (abortController.signal.aborted) {
