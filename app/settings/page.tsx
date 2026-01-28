@@ -12,6 +12,7 @@ import {
   Switch,
   Chip,
   Stack,
+  TextField,
   Dialog,
   DialogTitle,
   DialogContent,
@@ -39,9 +40,14 @@ export default function SettingsPage() {
     discoveryRange,
     useCTBInfoForJointRoutes,
     locale,
+    debugUseMockLocation,
+    debugMockLat,
+    debugMockLng,
     setDiscoveryRange,
     setUseCTBInfo,
     setLocale,
+    setDebugUseMockLocation,
+    setDebugMockLocation,
   } = useSettingsStore();
   const { clearAllFavorites, favorites } = useFavoritesStore();
   const { loadRoutes, loadingState, lastRoutesUpdatedAt } = useRouteStore((state) => ({
@@ -53,6 +59,8 @@ export default function SettingsPage() {
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [showRemoveFavConfirm, setShowRemoveFavConfirm] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
+  const [debugLatInput, setDebugLatInput] = useState(String(debugMockLat));
+  const [debugLngInput, setDebugLngInput] = useState(String(debugMockLng));
 
   // Prefer the in-memory "last downloaded" timestamp (reliable for first launch),
   // then fall back to localStorage timestamp if available.
@@ -180,6 +188,82 @@ export default function SettingsPage() {
                   variant={locale === 'zh-Hant' ? 'filled' : 'outlined'}
                 />
               </Stack>
+            </ListItem>
+          </List>
+        </Paper>
+
+        {/* Debug Section */}
+        <Typography
+          variant="labelLarge"
+          color="text.secondary"
+          sx={{ px: 1, mb: 1, textTransform: 'uppercase', letterSpacing: 1 }}
+        >
+          Debug
+        </Typography>
+
+        <Paper sx={{ mb: 3 }}>
+          <List disablePadding>
+            <ListItem>
+              <ListItemText
+                primary="Use mock location"
+                secondary="For testing in Cursor/desktop browsers (bypasses geolocation permission)"
+              />
+              <Switch
+                edge="end"
+                checked={debugUseMockLocation}
+                onChange={(e) => setDebugUseMockLocation(e.target.checked)}
+              />
+            </ListItem>
+
+            <Divider />
+
+            <ListItem sx={{ flexDirection: 'column', alignItems: 'stretch', py: 2 }}>
+              <ListItemText
+                primary="Mock location (lat/lng)"
+                secondary="Example: 22.279370, 114.178321"
+                sx={{ mb: 1 }}
+              />
+              <Stack direction="row" spacing={1}>
+                <TextField
+                  label="Lat"
+                  value={debugLatInput}
+                  onChange={(e) => setDebugLatInput(e.target.value)}
+                  size="small"
+                  fullWidth
+                  inputProps={{ inputMode: 'decimal' }}
+                />
+                <TextField
+                  label="Lng"
+                  value={debugLngInput}
+                  onChange={(e) => setDebugLngInput(e.target.value)}
+                  size="small"
+                  fullWidth
+                  inputProps={{ inputMode: 'decimal' }}
+                />
+              </Stack>
+              <Box sx={{ display: 'flex', gap: 1, mt: 1 }}>
+                <Button
+                  variant="outlined"
+                  onClick={() => {
+                    setDebugLatInput('22.279370');
+                    setDebugLngInput('114.178321');
+                    setDebugMockLocation(22.27937, 114.178321);
+                  }}
+                >
+                  Use provided test location
+                </Button>
+                <Button
+                  variant="contained"
+                  onClick={() => {
+                    const lat = Number(debugLatInput);
+                    const lng = Number(debugLngInput);
+                    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+                    setDebugMockLocation(lat, lng);
+                  }}
+                >
+                  Apply
+                </Button>
+              </Box>
             </ListItem>
           </List>
         </Paper>

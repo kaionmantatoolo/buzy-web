@@ -7,6 +7,8 @@ interface SettingsState extends AppSettings {
   setDiscoveryRange: (range: number) => void;
   setUseCTBInfo: (use: boolean) => void;
   setLocale: (locale: 'en' | 'zh-Hant') => void;
+  setDebugUseMockLocation: (use: boolean) => void;
+  setDebugMockLocation: (lat: number, lng: number) => void;
   resetSettings: () => void;
 }
 
@@ -25,6 +27,14 @@ export const useSettingsStore = create<SettingsState>()(
       
       setLocale: (locale: 'en' | 'zh-Hant') => {
         set({ locale });
+      },
+
+      setDebugUseMockLocation: (use: boolean) => {
+        set({ debugUseMockLocation: use });
+      },
+
+      setDebugMockLocation: (lat: number, lng: number) => {
+        set({ debugMockLat: lat, debugMockLng: lng });
       },
       
       resetSettings: () => {

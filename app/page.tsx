@@ -41,7 +41,12 @@ export default function NearbyPage() {
     updateNearbyRoutes,
     loadRoutes,
   } = useRouteStore();
-  const discoveryRange = useSettingsStore((state) => state.discoveryRange);
+  const { discoveryRange, debugUseMockLocation, debugMockLat, debugMockLng } = useSettingsStore((state) => ({
+    discoveryRange: state.discoveryRange,
+    debugUseMockLocation: state.debugUseMockLocation,
+    debugMockLat: state.debugMockLat,
+    debugMockLng: state.debugMockLng,
+  }));
 
   const [locationError, setLocationError] = useState<string | null>(null);
   const [isRequestingLocation, setIsRequestingLocation] = useState(false);
@@ -58,6 +63,17 @@ export default function NearbyPage() {
   // Check permission status and load cached data, then auto-request location if permission already granted
   useEffect(() => {
     if (!isBrowser) return;
+
+    // Debug mode: force a deterministic location, bypassing browser permission flows.
+    if (debugUseMockLocation) {
+      const location = { lat: debugMockLat, lng: debugMockLng };
+      log.debug('[NearbyPage][Debug] Using mock location:', location);
+      setUserLocation(location);
+      setPermissionStatus('granted');
+      setLocationError(null);
+      setPermissionDenied(false);
+      return;
+    }
 
     // Load cached data on mount
     try {
@@ -178,7 +194,7 @@ export default function NearbyPage() {
         }
       }
     }
-  }, [userLocation, setUserLocation]);
+  }, [userLocation, setUserLocation, isBrowser, debugUseMockLocation, debugMockLat, debugMockLng]);
 
 
   const requestLocation = useCallback(() => {
