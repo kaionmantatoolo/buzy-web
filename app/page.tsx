@@ -34,10 +34,12 @@ export default function NearbyPage() {
     processedNearbyRoutes,
     isLoadingNearbyRoutes,
     loadingState,
+    error,
     routes,
     userLocation,
     setUserLocation,
     updateNearbyRoutes,
+    loadRoutes,
   } = useRouteStore();
   const discoveryRange = useSettingsStore((state) => state.discoveryRange);
 
@@ -393,6 +395,31 @@ export default function NearbyPage() {
 
   if (loadingState === 'loading') {
     return <FullPageLoader message={t('fetchingRouteData')} />;
+  }
+
+  if (loadingState === 'error') {
+    return (
+      <Box sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+        <PageHeader title={t('nearbyRoutes')} />
+        <Box sx={{ p: 2 }}>
+          <Alert severity="error" sx={{ mb: 2 }}>
+            <Typography variant="bodyMedium" sx={{ mb: 0.5 }}>
+              Failed to load route data.
+            </Typography>
+            <Typography variant="bodySmall" color="text.secondary">
+              {error || 'Please try again.'}
+            </Typography>
+          </Alert>
+          <Button
+            variant="contained"
+            fullWidth
+            onClick={() => loadRoutes(true)}
+          >
+            {t('tryAgain')}
+          </Button>
+        </Box>
+      </Box>
+    );
   }
 
   return (

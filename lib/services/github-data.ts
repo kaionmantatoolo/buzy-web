@@ -4,6 +4,7 @@ import { ROUTES_CACHE_KEY, ROUTES_CACHE_TIMESTAMP_KEY } from '@/lib/cache/cache-
 
 const HK_BUS_ROUTES_URL = 'https://raw.githubusercontent.com/kaionmantatoolo/buzyData/main/hk_bus_routes.json';
 const CACHE_EXPIRATION_MS = 3 * 24 * 60 * 60 * 1000; // 3 days
+const FETCH_ROUTES_TIMEOUT_MS = 20_000;
 
 interface CachedData {
   routes: Route[];
@@ -12,6 +13,16 @@ interface CachedData {
 
 // Check if we're in browser environment
 const isBrowser = typeof window !== 'undefined';
+
+async function fetchWithTimeout(url: string, timeoutMs: number): Promise<Response> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { signal: controller.signal });
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
 
 /**
  * Get cached routes from localStorage
@@ -190,7 +201,7 @@ export async function fetchRoutes(forceRefresh = false): Promise<Route[]> {
   log.debug('GitHubDataService: Fetching routes from GitHub...');
   
   try {
-    const response = await fetch(HK_BUS_ROUTES_URL);
+    const response = await fetchWithTimeout(HK_BUS_ROUTES_URL, FETCH_ROUTES_TIMEOUT_MS);
     
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
@@ -206,7 +217,11 @@ export async function fetchRoutes(forceRefresh = false): Promise<Route[]> {
     
     return routes;
   } catch (error) {
-    console.error('GitHubDataService: Error fetching routes:', error);
+    if ((error as Error)?.name === 'AbortError') {
+      console.error(`GitHubDataService: Fetch routes timeout after ${FETCH_ROUTES_TIMEOUT_MS}ms`);
+    } else {
+      console.error('GitHubDataService: Error fetching routes:', error);
+    }
     
     // Try to return cached data even if expired
     if (!forceRefresh) {
