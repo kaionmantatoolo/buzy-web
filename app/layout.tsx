@@ -4,6 +4,7 @@ import './globals.css';
 import { Providers } from './providers';
 import { AppShell } from '@/components/layout/app-shell';
 import { Analytics } from '@vercel/analytics/next';
+import { SpeedInsights } from '@vercel/speed-insights/next';
 
 const roboto = Roboto({
   weight: ['300', '400', '500', '700'],
@@ -48,6 +49,7 @@ export default function RootLayout({
           <AppShell>{children}</AppShell>
         </Providers>
         <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   );
