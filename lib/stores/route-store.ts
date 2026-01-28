@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { Route, RouteETA, StopDetail, StopETA, LoadingState, getStopLocation, getStopUniqueId } from '@/lib/types';
+import { isUpcomingETA, Route, RouteETA, StopDetail, StopETA, LoadingState, getStopLocation, getStopUniqueId } from '@/lib/types';
 import { fetchRoutes, searchRoutes, filterRoutesByCompany } from '@/lib/services/github-data';
 import { fetchETAsForRoute, fetchETAsForStopOnRoute, fetchKMBETAForStop, filterETAsForRoute } from '@/lib/services/eta-service';
 import { log } from '@/lib/logger';
@@ -288,8 +288,11 @@ export const useRouteStore = create<RouteState>((set, get) => ({
           });
         };
 
+        const filterDisplayableETAs = (arr: RouteETA[]) => arr.filter((e) => isUpcomingETA(e.eta));
+
         // If we already have valid KMB ETAs, show the route now (incremental like iOS)
         sortByEtaTime(routeETAs);
+        routeETAs = filterDisplayableETAs(routeETAs);
         const hadAnyETAsInitially = routeETAs.length > 0;
         let hasShownRoute = false;
 
@@ -321,17 +324,24 @@ export const useRouteStore = create<RouteState>((set, get) => ({
             ctbPromise
               .then((ctbETAs) => {
                 if (abortController.signal.aborted) return;
-                if (ctbETAs.length === 0) return;
+                const displayableCTB = filterDisplayableETAs(ctbETAs);
+                if (displayableCTB.length === 0) return;
 
                 const current = get().processedNearbyRoutes;
                 const routeIndex = current.findIndex((r) => r.route.id === route.id);
                 if (routeIndex === -1) return;
 
                 const existingETAs = current[routeIndex].etas;
-                const merged = [...existingETAs, ...ctbETAs];
+                const merged = filterDisplayableETAs([...existingETAs, ...displayableCTB]);
                 sortByEtaTime(merged);
 
                 const updated = [...current];
+                if (merged.length === 0) {
+                  // If nothing displayable remains, remove the route (avoid N/A rows)
+                  updated.splice(routeIndex, 1);
+                  set({ processedNearbyRoutes: updated });
+                  return;
+                }
                 updated[routeIndex] = { ...updated[routeIndex], etas: merged };
                 set({ processedNearbyRoutes: updated });
               })
@@ -343,8 +353,9 @@ export const useRouteStore = create<RouteState>((set, get) => ({
           } else {
             try {
               const ctbETAs = await ctbPromise;
-              routeETAs.push(...ctbETAs);
+              routeETAs.push(...filterDisplayableETAs(ctbETAs));
               sortByEtaTime(routeETAs);
+              routeETAs = filterDisplayableETAs(routeETAs);
 
               if (routeETAs.length > 0) {
                 const current = get().processedNearbyRoutes;
