@@ -27,7 +27,7 @@ export function CompanyBadge({ company, size = 'small' }: CompanyBadgeProps) {
   };
 
   const { color } = getColors();
-  const label = company === 'Both' ? 'Joint' : company;
+  const label = company === 'Both' ? 'JOINT' : company;
   const fontSize = size === 'small' ? '0.75rem' : '0.8125rem';
 
   // iOS RouteBadgeLabel: background color.opacity(0.2), foreground color

@@ -3,6 +3,8 @@
 import { Box, Typography, Chip, Stack } from '@mui/material';
 import { RouteETA, formatETA, getETARemark } from '@/lib/types';
 import { useTranslation } from '@/lib/i18n';
+import { CompanyBadge } from '@/components/ui/company-badge';
+import type { BusCompany } from '@/lib/types';
 
 interface ETADisplayProps {
   eta: RouteETA;
@@ -26,8 +28,15 @@ export function ETADisplay({ eta, showRemark = true, compact = false }: ETADispl
     return 'primary.main';
   };
 
+  // Operator badge should reflect the ETA source operator (KMB/CTB), not the route company.
+  const etaCompany: BusCompany | null =
+    eta.co === 'KMB' ? 'KMB' : eta.co === 'CTB' ? 'CTB' : null;
+
   return (
     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+      {etaCompany && (
+        <CompanyBadge company={etaCompany} size={compact ? 'small' : 'small'} />
+      )}
       <Typography
         variant={compact ? 'bodySmall' : 'bodyMedium'}
         sx={{

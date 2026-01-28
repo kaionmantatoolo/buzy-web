@@ -181,19 +181,6 @@ export const StopRow = memo(function StopRow({
             ) : (
               <ETAList etas={etas} maxItems={3} />
             )}
-
-            {/* Company badges if multiple */}
-            {etas.length > 0 && (
-              <Stack direction="row" spacing={0.5} sx={{ mt: 1 }}>
-                {Array.from(new Set(etas.map(e => e.co))).map(co => (
-                  <CompanyBadge
-                    key={co}
-                    company={co as 'KMB' | 'CTB' | 'Both'}
-                    size="small"
-                  />
-                ))}
-              </Stack>
-            )}
           </Box>
         </Box>
       </Collapse>
