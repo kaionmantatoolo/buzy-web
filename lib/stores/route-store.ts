@@ -360,6 +360,12 @@ export const useRouteStore = create<RouteState>((set, get) => ({
               { route, nearestStop, etas: routeETAs, distance },
             ],
           });
+          // As soon as we have at least one route with ETAs, clear the "loading nearby"
+          // state so the UI no longer shows a global spinner, even while we continue
+          // to refine the list in the background.
+          if (get().isLoadingNearbyRoutes) {
+            set({ isLoadingNearbyRoutes: false });
+          }
           hasShownRoute = true;
           log.debug(`[NearbyRoutes] Added route ${route.routeNumber} with ${routeETAs.length} ETAs (${current.length + 1} total)`);
           await new Promise((resolve) => setTimeout(resolve, 80));
@@ -421,6 +427,9 @@ export const useRouteStore = create<RouteState>((set, get) => ({
                     { route, nearestStop, etas: routeETAs, distance },
                   ],
                 });
+                if (get().isLoadingNearbyRoutes) {
+                  set({ isLoadingNearbyRoutes: false });
+                }
                 log.debug(`[NearbyRoutes] Added route ${route.routeNumber} with ${routeETAs.length} ETAs (${current.length + 1} total)`);
                 await new Promise((resolve) => setTimeout(resolve, 80));
               }
