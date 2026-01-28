@@ -360,75 +360,11 @@ export const useRouteStore = create<RouteState>((set, get) => ({
           await new Promise((resolve) => setTimeout(resolve, 80));
         }
 
-        // STEP 2: Fetch CTB ETAs
-        // - If route already displayed (has KMB ETAs), fetch CTB in background and merge when done (fast UX)
-        // - If route not displayed yet (CTB-only or no KMB ETAs), await CTB and only display if ETAs exist (strict iOS rule)
-        if ((route.company === 'CTB' || route.company === 'Both') && !abortController.signal.aborted) {
-          const stopForCTB: StopDetail = {
-            ...nearestStop,
-            id: nearestStop.ctbStopId ?? nearestStop.id,
-          };
-
-          const ctbPromise = fetchETAsForStopOnRoute(route, stopForCTB);
-
-          if (hasShownRoute) {
-            ctbPromise
-              .then((ctbETAs) => {
-                if (abortController.signal.aborted) return;
-                const displayableCTB = filterDisplayableETAs(ctbETAs);
-                if (displayableCTB.length === 0) return;
-
-                const current = get().processedNearbyRoutes;
-                const routeIndex = current.findIndex((r) => r.route.id === route.id);
-                if (routeIndex === -1) return;
-
-                const existingETAs = current[routeIndex].etas;
-                const merged = filterDisplayableETAs([...existingETAs, ...displayableCTB]);
-                sortByEtaTime(merged);
-
-                const updated = [...current];
-                if (merged.length === 0) {
-                  // If nothing displayable remains, remove the route (avoid N/A rows)
-                  updated.splice(routeIndex, 1);
-                  set({ processedNearbyRoutes: updated });
-                  return;
-                }
-                updated[routeIndex] = { ...updated[routeIndex], etas: merged };
-                set({ processedNearbyRoutes: updated });
-              })
-              .catch((e) => {
-                if (!abortController.signal.aborted) {
-                  console.warn(`[NearbyRoutes] CTB ETAs for ${route.routeNumber}:`, e);
-                }
-              });
-          } else {
-            try {
-              const ctbETAs = await ctbPromise;
-              routeETAs.push(...filterDisplayableETAs(ctbETAs));
-              sortByEtaTime(routeETAs);
-              routeETAs = filterDisplayableETAs(routeETAs);
-
-              if (routeETAs.length > 0) {
-                const current = get().processedNearbyRoutes;
-                set({
-                  processedNearbyRoutes: [
-                    ...current,
-                    { route, nearestStop, etas: routeETAs, distance },
-                  ],
-                });
-                if (get().isLoadingNearbyRoutes) {
-                  set({ isLoadingNearbyRoutes: false });
-                }
-                log.debug(`[NearbyRoutes] Added route ${route.routeNumber} with ${routeETAs.length} ETAs (${current.length + 1} total)`);
-                await new Promise((resolve) => setTimeout(resolve, 80));
-              }
-            } catch (e) {
-              if (!abortController.signal.aborted) {
-                console.warn(`[NearbyRoutes] CTB ETAs for ${route.routeNumber}:`, e);
-              }
-            }
-          }
-        }
+        // STEP 2 (disabled on Nearby): CTB ETAs
+        // To match the performance characteristics of the original iOS lazy list
+        // on constrained web devices, we currently *skip* CTB per-route ETA calls
+        // on the home screen. CTB and JOINT routes will still show KMB ETAs where
+        // available, and full CTB ETAs remain available on the route detail screen.
       }
       
       // Only log if not cancelled
