@@ -24,6 +24,12 @@ import { PageHeader } from '@/components/layout';
 import { useSettingsStore, useFavoritesStore, useRouteStore } from '@/lib/stores';
 import { clearRoutesCache, getLastUpdateTime } from '@/lib/services';
 import { useTranslation } from '@/lib/i18n';
+import {
+  NEARBY_ROUTES_CACHE_KEY,
+  NEARBY_ROUTES_CACHE_TIMESTAMP_KEY,
+  USER_LOCATION_CACHE_KEY,
+  USER_LOCATION_CACHE_TIMESTAMP_KEY,
+} from '@/lib/cache/cache-keys';
 
 const DISCOVERY_RANGES = [300, 500, 800, 1000, 1500];
 
@@ -49,17 +55,37 @@ export default function SettingsPage() {
     ? lastUpdate.toLocaleDateString() + ' ' + lastUpdate.toLocaleTimeString()
     : t('never');
 
+  const clearClientSideCaches = () => {
+    // Keep these keys in sync with `app/page.tsx` caching.
+    try {
+      sessionStorage.removeItem(NEARBY_ROUTES_CACHE_KEY);
+      sessionStorage.removeItem(NEARBY_ROUTES_CACHE_TIMESTAMP_KEY);
+    } catch {
+      // ignore
+    }
+    try {
+      localStorage.removeItem(USER_LOCATION_CACHE_KEY);
+      localStorage.removeItem(USER_LOCATION_CACHE_TIMESTAMP_KEY);
+    } catch {
+      // ignore
+    }
+  };
+
   // Handle cache clear
-  const handleClearCache = () => {
+  const handleClearCache = async () => {
+    setIsUpdating(true);
     clearRoutesCache();
+    clearClientSideCaches();
     setShowClearConfirm(false);
-    loadRoutes(true);
+    await loadRoutes(true);
+    setIsUpdating(false);
   };
 
   // Handle update database
   const handleUpdateDatabase = async () => {
     setIsUpdating(true);
     clearRoutesCache();
+    clearClientSideCaches();
     await loadRoutes(true);
     setIsUpdating(false);
   };

@@ -1,9 +1,8 @@
 import { Route, HKBusRoute, HKBusStop, StopDetail, BusCompany } from '@/lib/types';
 import { log } from '@/lib/logger';
+import { ROUTES_CACHE_KEY, ROUTES_CACHE_TIMESTAMP_KEY } from '@/lib/cache/cache-keys';
 
 const HK_BUS_ROUTES_URL = 'https://raw.githubusercontent.com/kaionmantatoolo/buzyData/main/hk_bus_routes.json';
-const CACHE_KEY = 'buzy_routes_cache';
-const CACHE_TIMESTAMP_KEY = 'buzy_routes_cache_timestamp';
 const CACHE_EXPIRATION_MS = 3 * 24 * 60 * 60 * 1000; // 3 days
 
 interface CachedData {
@@ -21,8 +20,8 @@ function getCachedRoutes(): Route[] | null {
   if (!isBrowser) return null;
   
   try {
-    const cached = localStorage.getItem(CACHE_KEY);
-    const timestamp = localStorage.getItem(CACHE_TIMESTAMP_KEY);
+    const cached = localStorage.getItem(ROUTES_CACHE_KEY);
+    const timestamp = localStorage.getItem(ROUTES_CACHE_TIMESTAMP_KEY);
     
     if (!cached || !timestamp) return null;
     
@@ -32,8 +31,8 @@ function getCachedRoutes(): Route[] | null {
     // Check if cache is expired
     if (now - cacheTime > CACHE_EXPIRATION_MS) {
       log.debug('GitHubDataService: Cache expired');
-      localStorage.removeItem(CACHE_KEY);
-      localStorage.removeItem(CACHE_TIMESTAMP_KEY);
+      localStorage.removeItem(ROUTES_CACHE_KEY);
+      localStorage.removeItem(ROUTES_CACHE_TIMESTAMP_KEY);
       return null;
     }
     
@@ -53,8 +52,8 @@ function setCachedRoutes(routes: Route[]): void {
   if (!isBrowser) return;
   
   try {
-    localStorage.setItem(CACHE_KEY, JSON.stringify(routes));
-    localStorage.setItem(CACHE_TIMESTAMP_KEY, Date.now().toString());
+    localStorage.setItem(ROUTES_CACHE_KEY, JSON.stringify(routes));
+    localStorage.setItem(ROUTES_CACHE_TIMESTAMP_KEY, Date.now().toString());
     log.debug(`GitHubDataService: Cached ${routes.length} routes`);
   } catch (error) {
     console.error('GitHubDataService: Error writing cache:', error);
@@ -67,8 +66,8 @@ function setCachedRoutes(routes: Route[]): void {
 export function clearRoutesCache(): void {
   if (!isBrowser) return;
   
-  localStorage.removeItem(CACHE_KEY);
-  localStorage.removeItem(CACHE_TIMESTAMP_KEY);
+  localStorage.removeItem(ROUTES_CACHE_KEY);
+  localStorage.removeItem(ROUTES_CACHE_TIMESTAMP_KEY);
   log.debug('GitHubDataService: Cache cleared');
 }
 
@@ -76,20 +75,21 @@ export function clearRoutesCache(): void {
  * Determine bus company from route data
  */
 function determineCompany(route: HKBusRoute): BusCompany {
-  // First check companies array if available
-  if (route.companies && route.companies.length > 0) {
-    if (route.companies.length > 1) {
-      return 'Both';
-    }
-    if (route.companies.includes('JOINT') || route.companies.includes('BOTH')) {
-      return 'Both';
-    }
-    if (route.companies.includes('CTB')) {
-      return 'CTB';
-    }
-    if (route.companies.includes('KMB')) {
-      return 'KMB';
-    }
+  // Prefer the `companies` field (can be string or string[])
+  const companiesRaw = route.companies;
+  const companies = (Array.isArray(companiesRaw) ? companiesRaw : (companiesRaw ? [companiesRaw] : []))
+    .map(c => (c ?? '').toString().trim().toUpperCase())
+    .filter(Boolean);
+
+  if (companies.length > 0) {
+    // "JOINT"/"BOTH" explicitly means joint service
+    if (companies.includes('JOINT') || companies.includes('BOTH')) return 'Both';
+
+    const hasKMB = companies.includes('KMB');
+    const hasCTB = companies.includes('CTB');
+    if (hasKMB && hasCTB) return 'Both';
+    if (hasCTB) return 'CTB';
+    if (hasKMB) return 'KMB';
   }
   
   // Fall back to company string
@@ -344,7 +344,7 @@ export function filterRoutesByCompany(routes: Route[], company: 'all' | 'kmb' | 
 export function getLastUpdateTime(): Date | null {
   if (!isBrowser) return null;
   
-  const timestamp = localStorage.getItem(CACHE_TIMESTAMP_KEY);
+  const timestamp = localStorage.getItem(ROUTES_CACHE_TIMESTAMP_KEY);
   if (!timestamp) return null;
   
   return new Date(parseInt(timestamp, 10));

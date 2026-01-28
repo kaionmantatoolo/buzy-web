@@ -111,7 +111,8 @@ export interface HKBusRoute {
   bound: string;
   serviceType: string;
   company?: string;
-  companies?: string[];
+  // Raw data can be either a single string (e.g. "KMB") or an array (e.g. ["KMB","CTB"])
+  companies?: string[] | string;
   stops: HKBusStop[];
   // CTB-specific fields
   originEnCTB?: string;

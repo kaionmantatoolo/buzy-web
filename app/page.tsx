@@ -21,6 +21,12 @@ import { FullPageLoader } from '@/components/ui';
 import { useRouteStore, useSettingsStore } from '@/lib/stores';
 import { useTranslation } from '@/lib/i18n';
 import { log } from '@/lib/logger';
+import {
+  NEARBY_ROUTES_CACHE_KEY,
+  NEARBY_ROUTES_CACHE_TIMESTAMP_KEY,
+  USER_LOCATION_CACHE_KEY,
+  USER_LOCATION_CACHE_TIMESTAMP_KEY,
+} from '@/lib/cache/cache-keys';
 
 export default function NearbyPage() {
   const { t } = useTranslation();
@@ -44,10 +50,7 @@ export default function NearbyPage() {
   const [lastRefreshTime, setLastRefreshTime] = useState<string>('');
 
   const isBrowser = typeof window !== 'undefined';
-  const CACHE_KEY = 'nearby_routes_cache';
-  const CACHE_TIMESTAMP_KEY = 'nearby_routes_cache_timestamp';
   const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
-  const LOCATION_CACHE_KEY = 'user_location_cache';
   const LOCATION_CACHE_DURATION = 30 * 60 * 1000; // 30 minutes
 
   // Check permission status and load cached data, then auto-request location if permission already granted
@@ -56,8 +59,8 @@ export default function NearbyPage() {
 
     // Load cached data on mount
     try {
-      const cachedData = sessionStorage.getItem(CACHE_KEY);
-      const cachedTimestamp = sessionStorage.getItem(CACHE_TIMESTAMP_KEY);
+      const cachedData = sessionStorage.getItem(NEARBY_ROUTES_CACHE_KEY);
+      const cachedTimestamp = sessionStorage.getItem(NEARBY_ROUTES_CACHE_TIMESTAMP_KEY);
 
       if (cachedData && cachedTimestamp) {
         const timestamp = parseInt(cachedTimestamp, 10);
@@ -70,8 +73,8 @@ export default function NearbyPage() {
           setLastRefreshTime(new Date(timestamp).toLocaleTimeString());
         } else {
           // Clear expired cache
-          sessionStorage.removeItem(CACHE_KEY);
-          sessionStorage.removeItem(CACHE_TIMESTAMP_KEY);
+          sessionStorage.removeItem(NEARBY_ROUTES_CACHE_KEY);
+          sessionStorage.removeItem(NEARBY_ROUTES_CACHE_TIMESTAMP_KEY);
         }
       }
     } catch (error) {
@@ -87,8 +90,8 @@ export default function NearbyPage() {
 
     // Check for cached location
     try {
-      const cachedLocation = localStorage.getItem(LOCATION_CACHE_KEY);
-      const cachedLocationTimestamp = localStorage.getItem(`${LOCATION_CACHE_KEY}_timestamp`);
+      const cachedLocation = localStorage.getItem(USER_LOCATION_CACHE_KEY);
+      const cachedLocationTimestamp = localStorage.getItem(USER_LOCATION_CACHE_TIMESTAMP_KEY);
 
       if (cachedLocation && cachedLocationTimestamp) {
         const timestamp = parseInt(cachedLocationTimestamp, 10);
@@ -131,8 +134,8 @@ export default function NearbyPage() {
 
               // Cache the location
               try {
-                localStorage.setItem(LOCATION_CACHE_KEY, JSON.stringify(location));
-                localStorage.setItem(`${LOCATION_CACHE_KEY}_timestamp`, Date.now().toString());
+                localStorage.setItem(USER_LOCATION_CACHE_KEY, JSON.stringify(location));
+                localStorage.setItem(USER_LOCATION_CACHE_TIMESTAMP_KEY, Date.now().toString());
               } catch (error) {
                 console.error('Error caching location:', error);
               }
@@ -159,7 +162,7 @@ export default function NearbyPage() {
       } else {
         // Check if we have cached location
         try {
-          const cachedLocation = localStorage.getItem(LOCATION_CACHE_KEY);
+          const cachedLocation = localStorage.getItem(USER_LOCATION_CACHE_KEY);
           if (cachedLocation) {
             const location = JSON.parse(cachedLocation);
             setUserLocation(location);
@@ -227,8 +230,8 @@ export default function NearbyPage() {
         // Cache the location
         if (isBrowser) {
           try {
-            localStorage.setItem(LOCATION_CACHE_KEY, JSON.stringify(location));
-            localStorage.setItem(`${LOCATION_CACHE_KEY}_timestamp`, Date.now().toString());
+            localStorage.setItem(USER_LOCATION_CACHE_KEY, JSON.stringify(location));
+            localStorage.setItem(USER_LOCATION_CACHE_TIMESTAMP_KEY, Date.now().toString());
           } catch (error) {
             console.error('Error caching location:', error);
           }
@@ -274,7 +277,7 @@ export default function NearbyPage() {
 
       // Clear cache timestamp to force fresh data
       try {
-        sessionStorage.removeItem(CACHE_TIMESTAMP_KEY);
+        sessionStorage.removeItem(NEARBY_ROUTES_CACHE_TIMESTAMP_KEY);
       } catch (error) {
         console.error('Error clearing cache timestamp:', error);
       }
@@ -286,8 +289,8 @@ export default function NearbyPage() {
             // Get fresh data from store after update
             const freshProcessedRoutes = useRouteStore.getState().processedNearbyRoutes;
             if (freshProcessedRoutes.length > 0) {
-              sessionStorage.setItem(CACHE_KEY, JSON.stringify(freshProcessedRoutes));
-              sessionStorage.setItem(CACHE_TIMESTAMP_KEY, Date.now().toString());
+              sessionStorage.setItem(NEARBY_ROUTES_CACHE_KEY, JSON.stringify(freshProcessedRoutes));
+              sessionStorage.setItem(NEARBY_ROUTES_CACHE_TIMESTAMP_KEY, Date.now().toString());
               setLastRefreshTime(new Date().toLocaleTimeString());
             }
           } catch (error) {
@@ -369,8 +372,8 @@ export default function NearbyPage() {
             try {
               const freshProcessedRoutes = useRouteStore.getState().processedNearbyRoutes;
               if (freshProcessedRoutes.length > 0) {
-                sessionStorage.setItem(CACHE_KEY, JSON.stringify(freshProcessedRoutes));
-                sessionStorage.setItem(CACHE_TIMESTAMP_KEY, Date.now().toString());
+                sessionStorage.setItem(NEARBY_ROUTES_CACHE_KEY, JSON.stringify(freshProcessedRoutes));
+                sessionStorage.setItem(NEARBY_ROUTES_CACHE_TIMESTAMP_KEY, Date.now().toString());
                 setLastRefreshTime(new Date().toLocaleTimeString());
               }
             } catch (error) {
