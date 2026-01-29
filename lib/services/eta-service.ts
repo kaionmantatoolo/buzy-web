@@ -211,21 +211,28 @@ async function fetchCTBETAForStopAndRoute(
 
 const ctbRouteStopCache = new Map<string, { timestamp: number; map: Map<number, string> }>();
 
+function toCTBBound(bound: string): string {
+  if (bound === 'I') return 'inbound';
+  if (bound === 'O') return 'outbound';
+  return bound;
+}
+
 async function fetchCTBRouteStops(routeNumber: string, bound: string): Promise<Map<number, string>> {
-  const cacheKey = `ctb-route-stop-${routeNumber}-${bound}`;
+  const ctbBound = toCTBBound(bound);
+  const cacheKey = `ctb-route-stop-${routeNumber}-${ctbBound}`;
   const cached = ctbRouteStopCache.get(cacheKey);
   if (cached && Date.now() - cached.timestamp < CTB_ROUTE_STOP_CACHE_MS) {
     return cached.map;
   }
 
-  const url = `${CTB_API_BASE}/route-stop/CTB/${routeNumber}/${bound}`;
+  const url = `${CTB_API_BASE}/route-stop/CTB/${routeNumber}/${ctbBound}`;
   try {
     const response = await fetchWithTimeout(url);
     if (!response.ok) {
       if (response.status === 422) {
         return new Map();
       }
-      console.warn(`CTB route-stop API error: ${response.status} for route ${routeNumber} ${bound}`);
+      console.warn(`CTB route-stop API error: ${response.status} for route ${routeNumber} ${ctbBound}`);
       return new Map();
     }
     const data: CTBRouteStopResponse = await response.json();
@@ -354,23 +361,31 @@ export async function fetchETAsForStopOnRoute(
     return filtered;
   }
 
-  // JOINT: try per-route endpoints for both; if empty, fall back to stop-level merged.
+  // JOINT: try per-route endpoints for both; if one side is empty, fall back per-company.
   const [kmbRouteStop, ctbRouteStop] = await Promise.all([
     fetchKMBETAForStopAndRoute(stop.id, route.routeNumber, route.serviceType),
     fetchCTBETAForStopAndRoute(ctbStopId, route.routeNumber),
   ]);
-  let combined = [...mapToRouteETA(kmbRouteStop), ...mapToRouteETA(ctbRouteStop)];
+  let kmbCombined = mapToRouteETA(kmbRouteStop);
+  let ctbCombined = mapToRouteETA(ctbRouteStop);
 
-  if (combined.length === 0) {
-    const [kmbStop, ctbStop] = await Promise.all([
-      fetchKMBETAForStop(stop.id),
-      fetchCTBETAForStop(ctbStopId),
-    ]);
-    combined = filterETAsForRoute(route, [...kmbStop, ...ctbStop]).map((eta) => ({
+  if (kmbCombined.length === 0) {
+    const kmbStop = await fetchKMBETAForStop(stop.id);
+    kmbCombined = filterETAsForRoute(route, kmbStop).map((eta) => ({
       ...eta,
       seq: stop.sequence,
     }));
   }
+
+  if (ctbCombined.length === 0) {
+    const ctbStop = await fetchCTBETAForStop(ctbStopId);
+    ctbCombined = filterETAsForRoute(route, ctbStop).map((eta) => ({
+      ...eta,
+      seq: stop.sequence,
+    }));
+  }
+
+  const combined = [...kmbCombined, ...ctbCombined];
 
   combined.sort((a, b) => {
     if (!a.eta) return 1;
