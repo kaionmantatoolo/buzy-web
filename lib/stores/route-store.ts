@@ -215,16 +215,16 @@ export const useRouteStore = create<RouteState>((set, get) => ({
         return;
       }
 
-      // iOS-style: prefer a *small* lazy list of nearest routes/stops.
-      // We cap how many routes and unique stops we fetch ETAs for to avoid
-      // hammering the KMB API and freezing mobile browsers.
-      // On iOS Safari we are extra conservative.
+      // iOS-style: process all nearby routes in distance order, but keep
+      // web safe by batching ETA fetches and capping only when range is large.
       const isIOS =
         typeof navigator !== 'undefined' &&
         /iPhone|iPad|iPod/.test(navigator.userAgent || '');
-      const MAX_VISIBLE_ROUTES = isIOS ? 12 : 35;
-      const MAX_UNIQUE_STOPS_FOR_KMB = isIOS ? 12 : 35;
-      const MAX_UNIQUE_STOPS_FOR_CTB = isIOS ? 12 : 35;
+      const rangeFactor = Math.min(4, Math.max(1, Math.ceil(discoveryRange / 400)));
+      const shouldCap = isIOS || discoveryRange > 600;
+      const MAX_PROCESS_ROUTES = shouldCap ? (isIOS ? 80 : 300) * rangeFactor : Infinity;
+      const MAX_UNIQUE_STOPS = shouldCap ? (isIOS ? 25 : 80) * rangeFactor : Infinity;
+      const ETA_BATCH_SIZE = 5;
 
       let favoritesStore: { isFavorite: (r: Route) => boolean } | null = null;
       try {
@@ -247,174 +247,155 @@ export const useRouteStore = create<RouteState>((set, get) => ({
           return d1 - d2;
         });
 
-      // Only use the closest + favorite-weighted routes when deciding which
-      // stops to fetch ETAs for (lazy list behaviour like iOS).
-      const routesForETAs = sortedRoutes.slice(0, MAX_VISIBLE_ROUTES);
+      const routesToProcess = sortedRoutes.slice(0, Number.isFinite(MAX_PROCESS_ROUTES) ? MAX_PROCESS_ROUTES : sortedRoutes.length);
+      const routeById = new Map(routesToProcess.map((route) => [route.id, route]));
 
-      const limitedStopIds = Array.from(
-        new Set(
-          routesForETAs
-            .map((r) => routeToNearestStop.get(r.id)?.stop.id)
-            .filter((id): id is string => Boolean(id))
-        )
-      ).slice(0, MAX_UNIQUE_STOPS_FOR_KMB);
-      // Resolve CTB stop IDs for joint/CTB routes so CTB ETAs aren't missed
-      const ctbStopIdByRouteId = new Map<string, string>();
-      for (const route of routesForETAs) {
+      const stopEntries = new Map<
+        string,
+        { stop: StopDetail; distance: number; routeIds: string[] }
+      >();
+      for (const route of routesToProcess) {
         const info = routeToNearestStop.get(route.id);
         if (!info) continue;
-        const stop = info.stop;
-
-        if (route.company === 'CTB' || route.company === 'Both') {
-          const resolved = stop.ctbStopId
-            ? stop.ctbStopId
-            : await resolveCTBStopIdForRouteStop(route.routeNumber, route.bound, stop.sequence, stop.id);
-          ctbStopIdByRouteId.set(route.id, resolved);
+        const { stop, distance } = info;
+        const entry = stopEntries.get(stop.id);
+        if (entry) {
+          entry.routeIds.push(route.id);
+          if (distance < entry.distance) entry.distance = distance;
         } else {
-          ctbStopIdByRouteId.set(route.id, stop.id);
+          stopEntries.set(stop.id, { stop, distance, routeIds: [route.id] });
         }
       }
 
-      const limitedCTBStopIds = Array.from(
-        new Set(
-          routesForETAs
-            .filter((r) => r.company === 'CTB' || r.company === 'Both')
-            .map((r) => ctbStopIdByRouteId.get(r.id))
-            .filter((id): id is string => Boolean(id))
-        )
-      ).slice(0, MAX_UNIQUE_STOPS_FOR_CTB);
-
-      log.debug(
-        `[NearbyRoutes] Fetching KMB ETAs for ${limitedStopIds.length} unique stops ` +
-          `(from ${routesForETAs.length} nearest routes, total nearby=${nearby.length})`
-      );
-      log.debug(
-        `[NearbyRoutes] Fetching CTB ETAs for ${limitedCTBStopIds.length} unique stops`
+      const sortedStops = Array.from(stopEntries.values()).sort((a, b) => a.distance - b.distance);
+      const stopsToFetch = sortedStops.slice(
+        0,
+        Number.isFinite(MAX_UNIQUE_STOPS) ? MAX_UNIQUE_STOPS : sortedStops.length
       );
 
-      // Fetch KMB ETAs **sequentially in distance order** (no concurrency),
-      // matching the iOS lazy list behavior more closely and reducing the
-      // chance of main-thread contention on mobile Safari.
+      log.debug(
+        `[NearbyRoutes] Processing ${routesToProcess.length} routes, fetching ETAs for ${stopsToFetch.length} unique stops ` +
+          `(total nearby=${nearby.length}, range=${discoveryRange}m)`
+      );
+
       const kmbEtaCache = new Map<string, StopETA[]>();
       const ctbEtaCache = new Map<string, StopETA[]>();
-      const etaResults: Array<{ stopId: string; stopETAs: StopETA[] }> = [];
+      const ctbStopIdCache = new Map<string, string>();
+      const processedByRouteId = new Map<string, ProcessedRoute>();
 
-      for (const stopId of limitedStopIds) {
+      const sortByEtaTime = (arr: RouteETA[]) => {
+        arr.sort((a, b) => {
+          if (!a.eta) return 1;
+          if (!b.eta) return -1;
+          return new Date(a.eta).getTime() - new Date(b.eta).getTime();
+        });
+      };
+
+      const refreshProcessed = () => {
+        const nextProcessed: ProcessedRoute[] = [];
+        for (const route of routesToProcess) {
+          const item = processedByRouteId.get(route.id);
+          if (item) nextProcessed.push(item);
+        }
+        set({ processedNearbyRoutes: nextProcessed });
+      };
+
+      const updateRoutesForStop = (entry: { stop: StopDetail; distance: number; routeIds: string[] }) => {
+        const stop = entry.stop;
+        const kmbETAs = kmbEtaCache.get(stop.id) ?? [];
+        const resolvedCTBStopId = ctbStopIdCache.get(stop.id) ?? stop.ctbStopId ?? stop.id;
+        const ctbETAs = ctbEtaCache.get(resolvedCTBStopId) ?? [];
+        const combinedStopETAs = [...kmbETAs, ...ctbETAs];
+
+        for (const routeId of entry.routeIds) {
+          const route = routeById.get(routeId);
+          if (!route) continue;
+          const info = routeToNearestStop.get(route.id);
+          if (!info) continue;
+          const filtered = filterETAsForRoute(route, combinedStopETAs).map((eta) => ({
+            ...eta,
+            seq: info.stop.sequence,
+          }));
+          if (filtered.length === 0) continue;
+          sortByEtaTime(filtered);
+          processedByRouteId.set(route.id, {
+            route,
+            nearestStop: info.stop,
+            etas: filtered,
+            distance: info.distance,
+          });
+        }
+      };
+
+      let batchCounter = 0;
+      for (const entry of stopsToFetch) {
         if (abortController.signal.aborted) break;
 
+        const stopId = entry.stop.id;
         try {
           const stopETAs = await fetchKMBETAForStop(stopId);
-          etaResults.push({ stopId, stopETAs });
+          kmbEtaCache.set(stopId, stopETAs);
         } catch (error) {
           if (abortController.signal.aborted) {
             log.debug(`[NearbyRoutes] Fetch cancelled for stop ${stopId}`);
           } else {
-            console.warn(
-              `[NearbyRoutes] Failed to fetch ETAs for stop ${stopId}:`,
-              error
-            );
+            console.warn(`[NearbyRoutes] Failed to fetch KMB ETAs for stop ${stopId}:`, error);
           }
-          etaResults.push({ stopId, stopETAs: [] });
+          kmbEtaCache.set(stopId, []);
         }
 
-        // Yield briefly between stops to keep UI responsive.
-        await new Promise((resolve) => setTimeout(resolve, 0));
-      }
-
-      for (const stopId of limitedCTBStopIds) {
-        if (abortController.signal.aborted) break;
-
-        try {
-          const stopETAs = await fetchCTBETAForStop(stopId);
-          ctbEtaCache.set(stopId, stopETAs);
-        } catch (error) {
-          if (abortController.signal.aborted) {
-            log.debug(`[NearbyRoutes] Fetch cancelled for CTB stop ${stopId}`);
-          } else {
-            console.warn(
-              `[NearbyRoutes] Failed to fetch CTB ETAs for stop ${stopId}:`,
-              error
-            );
-          }
-          ctbEtaCache.set(stopId, []);
-        }
-
-        await new Promise((resolve) => setTimeout(resolve, 0));
-      }
-
-      // Check cancellation after batch fetch
-      if (abortController.signal.aborted) {
-        log.debug('[NearbyRoutes] Update cancelled after batch fetch');
-        set({ isLoadingNearbyRoutes: false });
-        return;
-      }
-
-      for (const { stopId, stopETAs } of etaResults) {
-        kmbEtaCache.set(stopId, stopETAs);
-      }
-      
-      // Only process a limited number of routes for the lazy nearby list.
-      const routesToProcess = routesForETAs;
-
-      log.debug(
-        `[NearbyRoutes] KMB ETA fetch complete, processing ${routesToProcess.length} routes incrementally`
-      );
-
-      // Build the list in-memory first to avoid frequent state updates
-      // (helps prevent UI hangs on mobile Safari/Chrome).
-      const nextProcessed: ProcessedRoute[] = [];
-
-      for (const route of routesToProcess) {
-        // Check cancellation before processing each route (iOS: if Task.isCancelled { break })
-        if (abortController.signal.aborted) {
-          log.debug(`[NearbyRoutes] Update cancelled, stopping at route ${route.routeNumber}`);
-          break;
-        }
-        
-        const info = routeToNearestStop.get(route.id);
-        if (!info) continue;
-        const { stop: nearestStop, distance } = info;
-
-        let routeETAs: RouteETA[] = [];
-
-        const kmbETAs = kmbEtaCache.get(nearestStop.id) ?? [];
-        const ctbStopId = ctbStopIdByRouteId.get(route.id) ?? nearestStop.ctbStopId ?? nearestStop.id;
-        const ctbETAs = ctbEtaCache.get(ctbStopId) ?? [];
-        const combinedStopETAs = [...kmbETAs, ...ctbETAs];
-
-        const filtered = filterETAsForRoute(route, combinedStopETAs);
-        routeETAs.push(...filtered.map((eta) => ({ ...eta, seq: nearestStop.sequence })));
-
-        const sortByEtaTime = (arr: RouteETA[]) => {
-          arr.sort((a, b) => {
-            if (!a.eta) return 1;
-            if (!b.eta) return -1;
-            return new Date(a.eta).getTime() - new Date(b.eta).getTime();
-          });
-        };
-
-        const filterDisplayableETAs = (arr: RouteETA[]) => arr.filter((e) => isUpcomingETA(e.eta));
-
-        // If we already have valid KMB ETAs, show the route now (incremental like iOS)
-        sortByEtaTime(routeETAs);
-        routeETAs = filterDisplayableETAs(routeETAs);
-        const hadAnyETAsInitially = routeETAs.length > 0;
-        if (hadAnyETAsInitially) {
-          nextProcessed.push({ route, nearestStop, etas: routeETAs, distance });
-          log.debug(
-            `[NearbyRoutes] Added route ${route.routeNumber} with ${routeETAs.length} ETAs (${nextProcessed.length} total)`
-          );
-        }
-      }
-      
-      // Commit results once to reduce render churn
-      if (!abortController.signal.aborted) {
-        set({
-          processedNearbyRoutes: nextProcessed,
-          isLoadingNearbyRoutes: false,
+        const needsCTB = entry.routeIds.some((routeId) => {
+          const route = routeById.get(routeId);
+          return route?.company === 'CTB' || route?.company === 'Both';
         });
+
+        if (needsCTB) {
+          let ctbStopId = entry.stop.ctbStopId;
+          if (!ctbStopId) {
+            const routeForCTB = entry.routeIds
+              .map((routeId) => routeById.get(routeId))
+              .find((route) => route && (route.company === 'CTB' || route.company === 'Both'));
+            if (routeForCTB) {
+              ctbStopId = await resolveCTBStopIdForRouteStop(
+                routeForCTB.routeNumber,
+                routeForCTB.bound,
+                entry.stop.sequence,
+                entry.stop.id
+              );
+            }
+          }
+          const resolved = ctbStopId ?? entry.stop.id;
+          ctbStopIdCache.set(entry.stop.id, resolved);
+          try {
+            const stopETAs = await fetchCTBETAForStop(resolved);
+            ctbEtaCache.set(resolved, stopETAs);
+          } catch (error) {
+            if (abortController.signal.aborted) {
+              log.debug(`[NearbyRoutes] Fetch cancelled for CTB stop ${resolved}`);
+            } else {
+              console.warn(`[NearbyRoutes] Failed to fetch CTB ETAs for stop ${resolved}:`, error);
+            }
+            ctbEtaCache.set(resolved, []);
+          }
+        }
+
+        updateRoutesForStop(entry);
+        batchCounter += 1;
+
+        if (batchCounter >= ETA_BATCH_SIZE) {
+          batchCounter = 0;
+          if (!abortController.signal.aborted) {
+            refreshProcessed();
+          }
+          await new Promise((resolve) => setTimeout(resolve, 0));
+        }
+      }
+
+      if (!abortController.signal.aborted) {
+        refreshProcessed();
+        set({ isLoadingNearbyRoutes: false });
         log.debug(
-          `[NearbyRoutes] Finished processing: ${nextProcessed.length} routes with valid ETAs`
+          `[NearbyRoutes] Finished processing: ${processedByRouteId.size} routes with valid ETAs`
         );
       }
     } catch (error) {
