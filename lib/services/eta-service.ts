@@ -246,92 +246,36 @@ export async function fetchETAsForStopOnRoute(
   route: Route,
   stop: StopDetail
 ): Promise<RouteETA[]> {
-  const allETAs: RouteETA[] = [];
-  
-  switch (route.company) {
-    case 'KMB': {
-      const kmbETAs = await fetchKMBETAForStopAndRoute(
-        stop.id,
-        route.routeNumber,
-        route.serviceType
-      );
-      
-      // Filter by direction and convert to RouteETA
-      const filtered = kmbETAs
-        .filter(eta => eta.dir === route.bound)
-        .map(eta => ({
-          ...eta,
-          seq: stop.sequence,
-        }))
-        // Only keep upcoming ETAs; once departed, drop them entirely.
-        .filter(eta => isUpcomingETA(eta.eta));
-      
-      allETAs.push(...filtered);
-      break;
-    }
-    
-    case 'CTB': {
-      // Use CTB stop ID if available
-      const ctbStopId = stop.ctbStopId || stop.id;
-      
-      const ctbETAs = await fetchCTBETAForStopAndRoute(
-        ctbStopId,
-        route.routeNumber
-      );
-      
-      // Filter by direction and convert
-      const filtered = ctbETAs
-        .filter(eta => eta.dir === route.bound)
-        .map(eta => ({
-          ...eta,
-          seq: stop.sequence,
-        }))
-        .filter(eta => isUpcomingETA(eta.eta));
-      
-      allETAs.push(...filtered);
-      break;
-    }
-    
-    case 'Both': {
-      // Fetch from both APIs concurrently
-      const ctbStopId = stop.ctbStopId || stop.id;
-      
-      const [kmbETAs, ctbETAs] = await Promise.all([
-        fetchKMBETAForStopAndRoute(stop.id, route.routeNumber, route.serviceType),
-        fetchCTBETAForStopAndRoute(ctbStopId, route.routeNumber),
-      ]);
-      
-      // Process KMB ETAs
-      const kmbFiltered = kmbETAs
-        .filter(eta => eta.dir === route.bound)
-        .map(eta => ({
-          ...eta,
-          seq: stop.sequence,
-        }))
-        .filter(eta => isUpcomingETA(eta.eta));
-      
-      // Process CTB ETAs
-      const ctbFiltered = ctbETAs
-        .filter(eta => eta.dir === route.bound)
-        .map(eta => ({
-          ...eta,
-          seq: stop.sequence,
-        }))
-        .filter(eta => isUpcomingETA(eta.eta));
-      
-      allETAs.push(...kmbFiltered, ...ctbFiltered);
-      break;
-    }
+  // Use stop-level ETAs for reliability, then filter for this route.
+  const ctbStopId = stop.ctbStopId || stop.id;
+
+  let stopLevelETAs: StopETA[] = [];
+
+  if (route.company === 'KMB') {
+    stopLevelETAs = await fetchKMBETAForStop(stop.id);
+  } else if (route.company === 'CTB') {
+    stopLevelETAs = await fetchCTBETAForStop(ctbStopId);
+  } else {
+    const [kmbETAs, ctbETAs] = await Promise.all([
+      fetchKMBETAForStop(stop.id),
+      fetchCTBETAForStop(ctbStopId),
+    ]);
+    stopLevelETAs = [...kmbETAs, ...ctbETAs];
   }
-  
+
+  const filtered = filterETAsForRoute(route, stopLevelETAs).map((eta) => ({
+    ...eta,
+    seq: stop.sequence,
+  }));
+
   // Sort by ETA time
-  allETAs.sort((a, b) => {
+  filtered.sort((a, b) => {
     if (!a.eta) return 1;
     if (!b.eta) return -1;
     return new Date(a.eta).getTime() - new Date(b.eta).getTime();
   });
-  
-  return allETAs;
+
+  return filtered;
 }
 
 /**
