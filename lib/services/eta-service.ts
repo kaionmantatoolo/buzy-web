@@ -262,6 +262,15 @@ async function resolveCTBStopId(
   return map.get(sequence) ?? fallbackId;
 }
 
+export async function resolveCTBStopIdForRouteStop(
+  routeNumber: string,
+  bound: string,
+  sequence: number,
+  fallbackId: string
+): Promise<string> {
+  return resolveCTBStopId(routeNumber, bound, sequence, fallbackId);
+}
+
 /**
  * Filter ETAs to match a specific route (like iOS filterETAsForRoute)
  */
@@ -484,4 +493,8 @@ export function getETAsForStopSequence(
 }
 
 // Export the filter function for use in route store
-export { filterETAsForRoute, fetchKMBETAForStop, fetchCTBETAForStop };
+export {
+  filterETAsForRoute,
+  fetchKMBETAForStop,
+  fetchCTBETAForStop,
+};

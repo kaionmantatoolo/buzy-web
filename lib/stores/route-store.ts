@@ -7,6 +7,7 @@ import {
   fetchKMBETAForStop,
   fetchCTBETAForStop,
   filterETAsForRoute,
+  resolveCTBStopIdForRouteStop,
 } from '@/lib/services/eta-service';
 import { log } from '@/lib/logger';
 import { queryNearbyRoutesFromGridIndex, rebuildNearbyGridIndex } from '@/lib/spatial/nearby-grid-index';
@@ -221,8 +222,9 @@ export const useRouteStore = create<RouteState>((set, get) => ({
       const isIOS =
         typeof navigator !== 'undefined' &&
         /iPhone|iPad|iPod/.test(navigator.userAgent || '');
-      const MAX_VISIBLE_ROUTES = isIOS ? 8 : 15;
-      const MAX_UNIQUE_STOPS_FOR_KMB = isIOS ? 8 : 20;
+      const MAX_VISIBLE_ROUTES = isIOS ? 12 : 35;
+      const MAX_UNIQUE_STOPS_FOR_KMB = isIOS ? 12 : 35;
+      const MAX_UNIQUE_STOPS_FOR_CTB = isIOS ? 12 : 35;
 
       let favoritesStore: { isFavorite: (r: Route) => boolean } | null = null;
       try {
@@ -256,16 +258,31 @@ export const useRouteStore = create<RouteState>((set, get) => ({
             .filter((id): id is string => Boolean(id))
         )
       ).slice(0, MAX_UNIQUE_STOPS_FOR_KMB);
+      // Resolve CTB stop IDs for joint/CTB routes so CTB ETAs aren't missed
+      const ctbStopIdByRouteId = new Map<string, string>();
+      for (const route of routesForETAs) {
+        const info = routeToNearestStop.get(route.id);
+        if (!info) continue;
+        const stop = info.stop;
+
+        if (route.company === 'CTB' || route.company === 'Both') {
+          const resolved = stop.ctbStopId
+            ? stop.ctbStopId
+            : await resolveCTBStopIdForRouteStop(route.routeNumber, route.bound, stop.sequence, stop.id);
+          ctbStopIdByRouteId.set(route.id, resolved);
+        } else {
+          ctbStopIdByRouteId.set(route.id, stop.id);
+        }
+      }
+
       const limitedCTBStopIds = Array.from(
         new Set(
           routesForETAs
-            .map((r) => {
-              const stop = routeToNearestStop.get(r.id)?.stop;
-              return stop?.ctbStopId ?? stop?.id;
-            })
+            .filter((r) => r.company === 'CTB' || r.company === 'Both')
+            .map((r) => ctbStopIdByRouteId.get(r.id))
             .filter((id): id is string => Boolean(id))
         )
-      ).slice(0, MAX_UNIQUE_STOPS_FOR_KMB);
+      ).slice(0, MAX_UNIQUE_STOPS_FOR_CTB);
 
       log.debug(
         `[NearbyRoutes] Fetching KMB ETAs for ${limitedStopIds.length} unique stops ` +
@@ -361,7 +378,7 @@ export const useRouteStore = create<RouteState>((set, get) => ({
         let routeETAs: RouteETA[] = [];
 
         const kmbETAs = kmbEtaCache.get(nearestStop.id) ?? [];
-        const ctbStopId = nearestStop.ctbStopId ?? nearestStop.id;
+        const ctbStopId = ctbStopIdByRouteId.get(route.id) ?? nearestStop.ctbStopId ?? nearestStop.id;
         const ctbETAs = ctbEtaCache.get(ctbStopId) ?? [];
         const combinedStopETAs = [...kmbETAs, ...ctbETAs];
 
