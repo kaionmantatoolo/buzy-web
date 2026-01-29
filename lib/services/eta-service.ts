@@ -301,7 +301,8 @@ function filterETAsForRoute(route: Route, allETAs: StopETA[]): StopETA[] {
     // Service type matching (lenient for CTB/Joint)
     let serviceTypeMatches = true;
     if (etaCo !== 'CTB' && route.company !== 'Both') {
-      serviceTypeMatches = eta.service_type === route.serviceType;
+      // KMB service_type can be number; normalize to string before comparing.
+      serviceTypeMatches = String(eta.service_type) === String(route.serviceType);
     }
     
     return routeMatches && directionMatches && serviceTypeMatches;

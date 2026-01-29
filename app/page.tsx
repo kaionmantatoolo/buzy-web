@@ -358,6 +358,7 @@ export default function NearbyPage() {
   // Track if we've already fetched nearby routes for this location/routes combo
   const hasFetchedNearbyRoutes = useRef(false);
   const lastLocationRef = useRef<{ lat: number; lng: number } | null>(null);
+  const lastRangeRef = useRef<number | null>(null);
 
   // iOS-style: Explicitly fetch nearby routes when location is available and routes are loaded
   // This matches iOS's fetchNearbyRoutesIfNeeded() pattern
@@ -368,19 +369,21 @@ export default function NearbyPage() {
       if (!userLocation || loadingState !== 'success') {
         hasFetchedNearbyRoutes.current = false;
         lastLocationRef.current = null;
+        lastRangeRef.current = null;
       }
       return;
     }
 
-    // Check if location changed (need to re-fetch)
-    const locationChanged = 
+    // Check if location or discovery range changed (need to re-fetch)
+    const locationChanged =
       !lastLocationRef.current ||
       lastLocationRef.current.lat !== userLocation.lat ||
       lastLocationRef.current.lng !== userLocation.lng;
+    const rangeChanged = lastRangeRef.current !== discoveryRange;
 
     // iOS-style: if we already fetched for this location, don't keep retrying in a loop
     // (even if the result set is empty due to no upcoming ETAs or transient API issues).
-    if (hasFetchedNearbyRoutes.current && !locationChanged) {
+    if (hasFetchedNearbyRoutes.current && !locationChanged && !rangeChanged) {
       return;
     }
 
@@ -390,15 +393,17 @@ export default function NearbyPage() {
     }
 
     // iOS pattern: fetchNearbyRoutesIfNeeded() - only fetch if we don't have routes yet
-    if (processedNearbyRoutes.length === 0 || locationChanged) {
+    if (processedNearbyRoutes.length === 0 || locationChanged || rangeChanged) {
       console.log('[NearbyPage] Fetching nearby routes (iOS-style)', {
         location: userLocation,
         routesCount: routes.length,
         locationChanged,
+        rangeChanged,
       });
 
       hasFetchedNearbyRoutes.current = true;
       lastLocationRef.current = { ...userLocation };
+      lastRangeRef.current = discoveryRange;
 
       // Add timeout guard to prevent infinite hanging
       const fetchTimeout = setTimeout(() => {
