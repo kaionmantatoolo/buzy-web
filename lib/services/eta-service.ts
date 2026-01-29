@@ -1,4 +1,13 @@
-import { Route, StopDetail, RouteETA, StopETA, CTBETAResponse, BusCompany, isUpcomingETA } from '@/lib/types';
+import {
+  Route,
+  StopDetail,
+  RouteETA,
+  StopETA,
+  CTBETAResponse,
+  CTBRouteStopResponse,
+  BusCompany,
+  isUpcomingETA,
+} from '@/lib/types';
 
 // API endpoints - we'll use our proxy routes to avoid CORS
 const KMB_API_BASE = '/api/eta/kmb';
@@ -12,6 +21,7 @@ interface CachedETA {
 
 const etaCache = new Map<string, CachedETA>();
 const CACHE_LIFETIME_MS = 10000; // 10 seconds
+const CTB_ROUTE_STOP_CACHE_MS = 10 * 60 * 1000; // 10 minutes
 
 /**
  * Clear ETA cache for specific stops
@@ -199,6 +209,52 @@ async function fetchCTBETAForStopAndRoute(
   }
 }
 
+const ctbRouteStopCache = new Map<string, { timestamp: number; map: Map<number, string> }>();
+
+async function fetchCTBRouteStops(routeNumber: string, bound: string): Promise<Map<number, string>> {
+  const cacheKey = `ctb-route-stop-${routeNumber}-${bound}`;
+  const cached = ctbRouteStopCache.get(cacheKey);
+  if (cached && Date.now() - cached.timestamp < CTB_ROUTE_STOP_CACHE_MS) {
+    return cached.map;
+  }
+
+  const url = `${CTB_API_BASE}/route-stop/CTB/${routeNumber}/${bound}`;
+  try {
+    const response = await fetchWithTimeout(url);
+    if (!response.ok) {
+      if (response.status === 422) {
+        return new Map();
+      }
+      console.warn(`CTB route-stop API error: ${response.status} for route ${routeNumber} ${bound}`);
+      return new Map();
+    }
+    const data: CTBRouteStopResponse = await response.json();
+    const map = new Map<number, string>();
+    for (const item of data.data || []) {
+      map.set(item.seq, item.stop);
+    }
+    ctbRouteStopCache.set(cacheKey, { timestamp: Date.now(), map });
+    return map;
+  } catch (error) {
+    if ((error as Error)?.name === 'AbortError') {
+      console.warn(`CTB route-stop timeout for route ${routeNumber} ${bound}`);
+    } else {
+      console.warn(`Error fetching CTB route-stop for route ${routeNumber} ${bound}:`, error);
+    }
+    return new Map();
+  }
+}
+
+async function resolveCTBStopId(
+  routeNumber: string,
+  bound: string,
+  sequence: number,
+  fallbackId: string
+): Promise<string> {
+  const map = await fetchCTBRouteStops(routeNumber, bound);
+  return map.get(sequence) ?? fallbackId;
+}
+
 /**
  * Filter ETAs to match a specific route (like iOS filterETAsForRoute)
  */
@@ -246,7 +302,9 @@ export async function fetchETAsForStopOnRoute(
   route: Route,
   stop: StopDetail
 ): Promise<RouteETA[]> {
-  const ctbStopId = stop.ctbStopId || stop.id;
+  const ctbStopId = stop.ctbStopId
+    ? stop.ctbStopId
+    : await resolveCTBStopId(route.routeNumber, route.bound, stop.sequence, stop.id);
 
   const mapToRouteETA = (etas: StopETA[]) =>
     etas
