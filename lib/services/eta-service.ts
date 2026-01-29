@@ -99,6 +99,57 @@ async function fetchKMBETAForStop(stopId: string): Promise<StopETA[]> {
 }
 
 /**
+ * Fetch CTB ETAs for a stop (all routes) - efficient endpoint
+ */
+async function fetchCTBETAForStop(stopId: string): Promise<StopETA[]> {
+  const cacheKey = `ctb-stop-${stopId}`;
+  const cached = etaCache.get(cacheKey);
+  if (cached && Date.now() - cached.timestamp < CACHE_LIFETIME_MS) {
+    return cached.etas;
+  }
+
+  try {
+    const url = `${CTB_API_BASE}/eta/CTB/${stopId}`;
+    const response = await fetchWithTimeout(url);
+    if (!response.ok) {
+      if (response.status === 422) {
+        return [];
+      }
+      console.warn(`CTB stop API error: ${response.status} for stop ${stopId}`);
+      return [];
+    }
+
+    const data: CTBETAResponse = await response.json();
+    const etas = data.data.map(ctbEta => ({
+      co: 'CTB',
+      route: ctbEta.route,
+      dir: ctbEta.dir,
+      service_type: ctbEta.service_type || '1',
+      seq: ctbEta.seq,
+      dest_tc: ctbEta.dest_tc,
+      dest_sc: ctbEta.dest_sc,
+      dest_en: ctbEta.dest_en,
+      eta_seq: ctbEta.eta_seq,
+      eta: ctbEta.eta || null,
+      rmk_tc: ctbEta.rmk_tc,
+      rmk_sc: ctbEta.rmk_sc,
+      rmk_en: ctbEta.rmk_en,
+      data_timestamp: ctbEta.data_timestamp,
+    }));
+
+    etaCache.set(cacheKey, { timestamp: Date.now(), etas });
+    return etas;
+  } catch (error) {
+    if ((error as Error)?.name === 'AbortError') {
+      console.warn(`CTB stop-eta timeout for stop ${stopId}`);
+    } else {
+      console.warn(`Error fetching CTB stop ETAs for stop ${stopId}:`, error);
+    }
+    return [];
+  }
+}
+
+/**
  * Fetch CTB ETAs for a specific stop and route
  */
 async function fetchCTBETAForStopAndRoute(
@@ -371,4 +422,4 @@ export function getETAsForStopSequence(
 }
 
 // Export the filter function for use in route store
-export { filterETAsForRoute, fetchKMBETAForStop };
+export { filterETAsForRoute, fetchKMBETAForStop, fetchCTBETAForStop };

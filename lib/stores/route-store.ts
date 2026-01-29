@@ -1,7 +1,13 @@
 import { create } from 'zustand';
 import { isUpcomingETA, Route, RouteETA, StopDetail, StopETA, LoadingState, getStopLocation, getStopUniqueId } from '@/lib/types';
 import { fetchRoutes, searchRoutes, filterRoutesByCompany } from '@/lib/services/github-data';
-import { fetchETAsForRoute, fetchETAsForStopOnRoute, fetchKMBETAForStop, filterETAsForRoute } from '@/lib/services/eta-service';
+import {
+  fetchETAsForRoute,
+  fetchETAsForStopOnRoute,
+  fetchKMBETAForStop,
+  fetchCTBETAForStop,
+  filterETAsForRoute,
+} from '@/lib/services/eta-service';
 import { log } from '@/lib/logger';
 import { queryNearbyRoutesFromGridIndex, rebuildNearbyGridIndex } from '@/lib/spatial/nearby-grid-index';
 
@@ -250,16 +256,30 @@ export const useRouteStore = create<RouteState>((set, get) => ({
             .filter((id): id is string => Boolean(id))
         )
       ).slice(0, MAX_UNIQUE_STOPS_FOR_KMB);
+      const limitedCTBStopIds = Array.from(
+        new Set(
+          routesForETAs
+            .map((r) => {
+              const stop = routeToNearestStop.get(r.id)?.stop;
+              return stop?.ctbStopId ?? stop?.id;
+            })
+            .filter((id): id is string => Boolean(id))
+        )
+      ).slice(0, MAX_UNIQUE_STOPS_FOR_KMB);
 
       log.debug(
         `[NearbyRoutes] Fetching KMB ETAs for ${limitedStopIds.length} unique stops ` +
           `(from ${routesForETAs.length} nearest routes, total nearby=${nearby.length})`
+      );
+      log.debug(
+        `[NearbyRoutes] Fetching CTB ETAs for ${limitedCTBStopIds.length} unique stops`
       );
 
       // Fetch KMB ETAs **sequentially in distance order** (no concurrency),
       // matching the iOS lazy list behavior more closely and reducing the
       // chance of main-thread contention on mobile Safari.
       const kmbEtaCache = new Map<string, StopETA[]>();
+      const ctbEtaCache = new Map<string, StopETA[]>();
       const etaResults: Array<{ stopId: string; stopETAs: StopETA[] }> = [];
 
       for (const stopId of limitedStopIds) {
@@ -281,6 +301,27 @@ export const useRouteStore = create<RouteState>((set, get) => ({
         }
 
         // Yield briefly between stops to keep UI responsive.
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      }
+
+      for (const stopId of limitedCTBStopIds) {
+        if (abortController.signal.aborted) break;
+
+        try {
+          const stopETAs = await fetchCTBETAForStop(stopId);
+          ctbEtaCache.set(stopId, stopETAs);
+        } catch (error) {
+          if (abortController.signal.aborted) {
+            log.debug(`[NearbyRoutes] Fetch cancelled for CTB stop ${stopId}`);
+          } else {
+            console.warn(
+              `[NearbyRoutes] Failed to fetch CTB ETAs for stop ${stopId}:`,
+              error
+            );
+          }
+          ctbEtaCache.set(stopId, []);
+        }
+
         await new Promise((resolve) => setTimeout(resolve, 0));
       }
 
@@ -318,15 +359,14 @@ export const useRouteStore = create<RouteState>((set, get) => ({
         const { stop: nearestStop, distance } = info;
 
         let routeETAs: RouteETA[] = [];
-        
-        // STEP 1: Get KMB ETAs (if route uses KMB) and show immediately if available (iOS-style incremental display)
-        if (route.company === 'KMB' || route.company === 'Both') {
-          const kmbETAs = kmbEtaCache.get(nearestStop.id) ?? [];
-          const filtered = filterETAsForRoute(route, kmbETAs);
-          routeETAs.push(
-            ...filtered.map((eta) => ({ ...eta, seq: nearestStop.sequence }))
-          );
-        }
+
+        const kmbETAs = kmbEtaCache.get(nearestStop.id) ?? [];
+        const ctbStopId = nearestStop.ctbStopId ?? nearestStop.id;
+        const ctbETAs = ctbEtaCache.get(ctbStopId) ?? [];
+        const combinedStopETAs = [...kmbETAs, ...ctbETAs];
+
+        const filtered = filterETAsForRoute(route, combinedStopETAs);
+        routeETAs.push(...filtered.map((eta) => ({ ...eta, seq: nearestStop.sequence })));
 
         const sortByEtaTime = (arr: RouteETA[]) => {
           arr.sort((a, b) => {
@@ -342,21 +382,12 @@ export const useRouteStore = create<RouteState>((set, get) => ({
         sortByEtaTime(routeETAs);
         routeETAs = filterDisplayableETAs(routeETAs);
         const hadAnyETAsInitially = routeETAs.length > 0;
-        let hasShownRoute = false;
-
         if (hadAnyETAsInitially) {
           nextProcessed.push({ route, nearestStop, etas: routeETAs, distance });
-          hasShownRoute = true;
           log.debug(
             `[NearbyRoutes] Added route ${route.routeNumber} with ${routeETAs.length} ETAs (${nextProcessed.length} total)`
           );
         }
-
-        // STEP 2 (disabled on Nearby): CTB ETAs
-        // To match the performance characteristics of the original iOS lazy list
-        // on constrained web devices, we currently *skip* CTB per-route ETA calls
-        // on the home screen. CTB and JOINT routes will still show KMB ETAs where
-        // available, and full CTB ETAs remain available on the route detail screen.
       }
       
       // Commit results once to reduce render churn
