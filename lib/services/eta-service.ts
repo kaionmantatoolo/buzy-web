@@ -323,6 +323,29 @@ export async function fetchETAsForStopOnRoute(
     ? stop.ctbStopId
     : await resolveCTBStopId(route.routeNumber, route.bound, stop.sequence, stop.id);
 
+  const dedupeAndSort = (etas: RouteETA[]) => {
+    const seen = new Map<string, RouteETA>();
+    for (const eta of etas) {
+      const key = `${eta.co}-${eta.eta_seq ?? ''}-${eta.eta ?? ''}-${eta.seq ?? ''}`;
+      if (!seen.has(key)) {
+        seen.set(key, eta);
+      }
+    }
+    const unique = Array.from(seen.values());
+    unique.sort((a, b) => {
+      if (!a.eta) return 1;
+      if (!b.eta) return -1;
+      const t1 = new Date(a.eta).getTime();
+      const t2 = new Date(b.eta).getTime();
+      if (t1 !== t2) return t1 - t2;
+      const s1 = a.eta_seq ?? 99;
+      const s2 = b.eta_seq ?? 99;
+      if (s1 !== s2) return s1 - s2;
+      return (a.co || '').localeCompare(b.co || '');
+    });
+    return unique;
+  };
+
   const mapToRouteETA = (etas: StopETA[]) =>
     etas
       .filter((eta) => eta.dir === route.bound)
@@ -344,12 +367,7 @@ export async function fetchETAsForStopOnRoute(
         seq: stop.sequence,
       }));
     }
-    filtered.sort((a, b) => {
-      if (!a.eta) return 1;
-      if (!b.eta) return -1;
-      return new Date(a.eta).getTime() - new Date(b.eta).getTime();
-    });
-    return filtered;
+    return dedupeAndSort(filtered);
   }
 
   if (route.company === 'CTB') {
@@ -363,12 +381,7 @@ export async function fetchETAsForStopOnRoute(
         seq: stop.sequence,
       }));
     }
-    filtered.sort((a, b) => {
-      if (!a.eta) return 1;
-      if (!b.eta) return -1;
-      return new Date(a.eta).getTime() - new Date(b.eta).getTime();
-    });
-    return filtered;
+    return dedupeAndSort(filtered);
   }
 
   // JOINT: try per-route endpoints for both; if one side is empty, fall back per-company.
@@ -396,14 +409,7 @@ export async function fetchETAsForStopOnRoute(
   }
 
   const combined = [...kmbCombined, ...ctbCombined];
-
-  combined.sort((a, b) => {
-    if (!a.eta) return 1;
-    if (!b.eta) return -1;
-    return new Date(a.eta).getTime() - new Date(b.eta).getTime();
-  });
-
-  return combined;
+  return dedupeAndSort(combined);
 }
 
 /**
